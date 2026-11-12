@@ -1,0 +1,10 @@
+node_modules
+.wrangler
+.dev.vars
+.env
+# Certificates and keys never go to the repository.
+*.pfx
+*.p12
+*.pem
+*.key
+.DS_Store

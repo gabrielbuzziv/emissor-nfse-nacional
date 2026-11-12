@@ -1,0 +1,33 @@
+{
+  "name": "emissor-nfse-nacional",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Emissor de NFS-e direto na API do Sistema Nacional NFS-e, sem custo por nota, hospedado na sua conta Cloudflare.",
+  "license": "MIT",
+  "type": "module",
+  "packageManager": "pnpm@11.15.1",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "migrate": "wrangler d1 migrations apply emissor-nfse --remote",
+    "certificate": "node --openssl-legacy-provider scripts/upload-certificate.mjs",
+    "types": "wrangler types --env-file=.dev.vars.example --strict-vars=false",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@cloudflare/containers": "^0.3.7",
+    "hono": "^4.13.18",
+    "pdf-lib": "^1.17.1",
+    "uqr": "^0.1.3"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "typescript": "^7.0.2",
+    "vitest": "^5.1.0",
+    "wrangler": "^4.160.1"
+  }
+}

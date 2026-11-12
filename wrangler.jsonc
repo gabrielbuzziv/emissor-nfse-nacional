@@ -1,0 +1,40 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "emissor-nfse",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-11-01",
+  // A API fica em https://emissor-nfse.<seu-subdominio>.workers.dev. Para usar um domínio próprio (com o DNS na
+  // Cloudflare), troque para false e descomente "routes".
+  "workers_dev": true,
+  "preview_urls": false,
+  // "routes": [{ "pattern": "nfse.seudominio.com.br", "custom_domain": true }],
+  // O primeiro `pnpm run deploy` cria o banco D1 "emissor-nfse"; não é preciso informar o id.
+  "d1_databases": [{ "binding": "DB", "database_name": "emissor-nfse", "migrations_dir": "migrations" }],
+  // Cada certificado roda no próprio container: quando você troca o certificado, o container antigo desliga sozinho
+  // depois de 10 minutos sem uso.
+  "containers": [{ "class_name": "GovClient", "image": "./container/Dockerfile", "max_instances": 3, "instance_type": "lite" }],
+  "durable_objects": { "bindings": [{ "name": "GOV", "class_name": "GovClient" }] },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["GovClient"] }],
+  "vars": {
+    // "restricted" é a produção restrita, o ambiente de testes do governo; "production" emite notas de verdade.
+    "NFSE_ENVIRONMENT": "restricted",
+    // CNPJ do prestador do serviço.
+    "ISSUER_CNPJ": "",
+    // Código IBGE do município do CNPJ (7 dígitos).
+    "ISSUER_CITY_CODE": "",
+    // Inscrição municipal. Deixe vazio, a menos que o município tenha cadastrado a empresa no Cadastro Nacional de
+    // Contribuintes (CNC); sem esse cadastro, o governo recusa a nota com o erro E0120.
+    "ISSUER_MUNICIPAL_SUBSCRIPTION": "",
+    // Situação no Simples Nacional: "1" = não optante; "2" = MEI; "3" = ME/EPP.
+    "ISSUER_SIMPLES_OPTION": "",
+    // Só para ME/EPP. Regime de apuração: "1" = tributos federais e municipal pelo Simples Nacional; "2" = federais
+    // pelo Simples e ISSQN por fora; "3" = federais e municipal por fora do Simples.
+    "ISSUER_SIMPLES_APURATION": "1",
+    // Só para ME/EPP. Alíquota aproximada dos tributos do Simples Nacional (Lei 12.741/2012), com ponto e 2 casas
+    // decimais, por exemplo "6.00". Peça ao seu contador e atualize quando ela mudar.
+    "ISSUER_SIMPLES_TOTAL_TAX_PERCENT": "",
+    // Série das DPS (até 5 dígitos).
+    "DPS_SERIES": "1"
+  },
+  "observability": { "enabled": true }
+}
