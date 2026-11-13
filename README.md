@@ -4,8 +4,9 @@ Emissor de NFS-e que fala direto com a API do Sistema Nacional NFS-e, sem interm
 na sua conta da Cloudflare: o seu sistema envia os dados da venda e recebe a nota autorizada, com o XML, o PDF e links
 prontos para mandar ao cliente.
 
-Ele já emite notas em produção para uma ME/EPP do Simples Nacional. Para MEI e empresas fora do Simples, o código segue
-o leiaute oficial, mas ainda não foi testado em produção.
+Ele foi feito para empresas do Simples Nacional (ME, EPP e MEI) que prestam serviços no próprio município, e já emite
+notas em produção para uma ME/EPP. Empresas fora do Simples ainda não são atendidas: veja
+[para quem serve](#para-quem-serve).
 
 ## O que ele faz
 
@@ -18,6 +19,44 @@ o leiaute oficial, mas ainda não foi testado em produção.
 - Cria links assinados do PDF e do XML, que podem ir no e-mail do cliente.
 
 Os testes validam os documentos contra os XSDs oficiais e conferem as assinaturas com o `xmlsec1`.
+
+## Para quem serve
+
+| Sua empresa | Funciona? | Em quais municípios |
+|---|---|---|
+| ME ou EPP do Simples Nacional | Sim. Já emite em produção. | Em todos os que têm o convênio ativo: 5.545 de 5.571, em 10/11/2026. |
+| MEI | Sim, pelas regras oficiais. Ainda não foi testado em produção. | Em todos. |
+| Fora do Simples (Lucro Presumido ou Lucro Real) | Ainda não. | — |
+
+O emissor cobre o caso mais comum: serviço prestado no município da empresa, tributado pelo ISSQN e sem retenção. Veja
+as [limitações](#limitações).
+
+### Perguntas frequentes
+
+**Funciona para MEI?** Sim, pelas regras oficiais. O MEI emite pelo Emissor Nacional desde 1º/9/2023, em qualquer
+município, e a DPS que o emissor monta para ele segue essas regras. Dois avisos: pela API, o MEI precisa de um
+certificado e-CNPJ A1, e esse caso ainda não foi testado em produção.
+
+**É só para o Simples Nacional?** Hoje, sim: ME, EPP e MEI. Para empresas fora do Simples, a nota seria recusada,
+porque esse regime informa os tributos aproximados em outro formato. Além disso, essas empresas já são obrigadas a
+destacar o IBS e a CBS, o que o emissor não faz.
+
+**Funciona no meu município?** Para ME/EPP do Simples, em todo município com o convênio ativo; em 10/11/2026, só 26
+não estavam. Para MEI, em todos. Para confirmar, veja
+[como conferir o seu município](docs/municipios.md#como-conferir-o-seu-município).
+
+**A prefeitura tem sistema próprio de NFS-e. Funciona mesmo assim?** Sim, para MEI e para ME/EPP com o ISS apurado pelo
+Simples. Desde 1º/11/2026, a Resolução CGSN nº 191/2026 obriga a ME e a EPP do Simples Nacional a emitir pelo Emissor
+Nacional, e a prefeitura não autoriza mais essas notas no sistema dela. Como a regra é nova, este emissor ainda não foi
+confirmado em produção num município assim.
+
+**Quais serviços posso emitir?** Os tributados no município do prestador: 272 dos 337 códigos nacionais. Outros 31
+funcionam quando o serviço é prestado no seu município. Obras, eventos e fornecimento de mão de obra não funcionam.
+
+**E a reforma tributária (IBS e CBS)?** O emissor ainda não destaca o IBS e a CBS. Para os optantes pelo Simples
+Nacional, a obrigatoriedade começa em 1º/1/2027, e o emissor precisa ser atualizado até lá.
+
+A [documentação](docs/README.md) explica cada resposta, com as regras por município e as fontes oficiais.
 
 ## Quanto custa
 
@@ -47,11 +86,11 @@ flowchart LR
 
 Você vai precisar de:
 
-1. **Município ativo no Sistema Nacional NFS-e.** Depois da instalação, o `/health?deep=1` confirma isso com uma
-   consulta real ao governo.
+1. **Empresa do Simples Nacional (ME, EPP ou MEI)**, num município com o convênio ativo no Sistema Nacional NFS-e. Para
+   MEI, vale qualquer município. Veja [para quem serve](#para-quem-serve).
 2. **Certificado A1 (e-CNPJ) do prestador**: o arquivo `.pfx` e a senha.
-3. **Dados do seu contador**: a situação no Simples Nacional, a alíquota aproximada do Simples (para ME/EPP), o código
-   de tributação nacional do serviço e, se ele pedir, o código NBS.
+3. **Dados do seu contador**: a situação no Simples Nacional, a alíquota nominal da faixa do Simples (para ME/EPP), o
+   código de tributação nacional do serviço e, se ele pedir, o código NBS.
 4. **Conta na Cloudflare** no plano Workers Paid.
 5. **Node.js 22.12 ou mais recente**, o **pnpm** (rode `corepack enable`) e o **Docker** aberto, porque o deploy monta a
    imagem do container na sua máquina.
@@ -74,11 +113,11 @@ Preencha os `vars` do `wrangler.jsonc`:
 | `NFSE_ENVIRONMENT` | `restricted` (produção restrita, o ambiente de testes do governo) ou `production` (notas de verdade). Comece com `restricted`. |
 | `ISSUER_CNPJ` | O CNPJ do prestador. |
 | `ISSUER_CITY_CODE` | O código IBGE do município do CNPJ, com 7 dígitos ([consulte no IBGE](https://www.ibge.gov.br/explica/codigos-dos-municipios.php)). |
-| `ISSUER_MUNICIPAL_SUBSCRIPTION` | A inscrição municipal. Deixe vazio, a menos que o município tenha cadastrado a empresa no Cadastro Nacional de Contribuintes (CNC); sem esse cadastro, a nota é recusada com o erro E0120. |
-| `ISSUER_SIMPLES_OPTION` | A situação no Simples Nacional: `1` = não optante; `2` = MEI; `3` = ME/EPP. |
+| `ISSUER_MUNICIPAL_SUBSCRIPTION` | A inscrição municipal. Deixe vazio, a menos que o município tenha cadastrado a empresa no Cadastro Nacional de Contribuintes (CNC). Com esse cadastro, ela é obrigatória (erro E0116); sem ele, a nota é recusada com o erro E0120. |
+| `ISSUER_SIMPLES_OPTION` | A situação no Simples Nacional: `2` = MEI; `3` = ME/EPP. O valor `1` (não optante) é aceito, mas o emissor ainda não atende empresas fora do Simples. |
 | `ISSUER_SIMPLES_APURATION` | Só para ME/EPP. `1` = tributos federais e municipal apurados pelo Simples Nacional, o caso mais comum. As outras opções estão no `wrangler.jsonc`. |
-| `ISSUER_SIMPLES_TOTAL_TAX_PERCENT` | Só para ME/EPP. A alíquota aproximada dos tributos do Simples (Lei 12.741/2012), com ponto e 2 casas decimais, por exemplo `6.00`. |
-| `DPS_SERIES` | A série das DPS, com até 5 dígitos. O padrão é `1`. |
+| `ISSUER_SIMPLES_TOTAL_TAX_PERCENT` | Só para ME/EPP. A alíquota nominal da faixa do Simples em que a empresa está, que sai na nota como valor aproximado dos tributos (Lei 12.741/2012). Use ponto e 2 casas decimais, por exemplo `6.00`. |
+| `DPS_SERIES` | A série das DPS, de 1 a 49999, a faixa que o governo reserva à API. O padrão é `1`. |
 
 Por padrão, a API fica em `https://emissor-nfse.<seu-subdominio>.workers.dev`. Para usar um domínio próprio, siga o
 comentário de `routes` no `wrangler.jsonc`.
@@ -117,8 +156,12 @@ invalida os links já enviados.
 curl -H "Authorization: Bearer $API_TOKEN" "https://emissor-nfse.<seu-subdominio>.workers.dev/health?deep=1"
 ```
 
-Com tudo certo, a resposta traz `"ok": true`, a validade do certificado em `container.certNotAfter` e o convênio do
+Com tudo certo, a resposta traz `"ok": true`, a validade do certificado em `container.certNotAfter` e os parâmetros do
 município em `cityAgreement`. Se faltar alguma variável, ela aparece em `config`.
+
+O `"ok": true` diz que o governo aceitou o certificado e respondeu sobre o município. Para saber se a prefeitura usa os
+emissores nacionais ou um sistema próprio, veja
+[como conferir o seu município](docs/municipios.md#como-conferir-o-seu-município).
 
 ### 5. Teste e vá para a produção
 
@@ -206,8 +249,9 @@ O `reasonCode` pode ser `1` (erro na emissão), `2` (serviço não prestado, o p
 opcional; o governo exige de 15 a 255 caracteres, e textos menores são completados com pontos.
 
 - **200**: cancelada.
-- **422**: o governo recusou, e o motivo está em `cancelErrors`. O prazo para cancelar depende do município; depois
-  dele, a nota precisa ser substituída, e este emissor ainda não faz substituição.
+- **422**: o governo recusou, e o motivo está em `cancelErrors`. O prazo e as condições para cancelar
+  [dependem do município](docs/regras-municipais.md#cancelamento); fora deles, o caminho é pedir a análise fiscal à
+  prefeitura, o que este emissor não faz.
 - **409**: a nota não está emitida. **404**: a nota não existe. **502**: o governo não respondeu; tente de novo.
 
 ### Listar
@@ -238,19 +282,31 @@ novo, sem deploy; confira a validade em `GET /health` (`container.certNotAfter`)
 | `cityAgreement` sem status 200 | O município não está ativo nesse ambiente (a produção restrita não tem todos), ou o governo recusou o certificado. |
 | Nota recusada com `HTTP 403` | O governo recusou o certificado: confira se ele é um e-CNPJ ICP-Brasil do prestador e se está na validade. |
 | Nota recusada com `E0120` | Deixe `ISSUER_MUNICIPAL_SUBSCRIPTION` vazio. |
+| Nota recusada com `E0116` | A prefeitura cadastrou a empresa no CNC: preencha `ISSUER_MUNICIPAL_SUBSCRIPTION`. |
+| Nota recusada com `E0038` ou `E0039` | O convênio do município não está ativo, ou a prefeitura usa sistema próprio e o seu caso não é MEI nem ME/EPP com o ISS apurado pelo Simples. Veja [Municípios](docs/municipios.md). |
+| Nota recusada com `E0312` | A prefeitura não tem esse código de serviço parametrizado na data de competência. Confira o `serviceCode`; se estiver certo, fale com a prefeitura. |
 | Nota parada em `unknown` | O governo não respondeu. Envie o mesmo pedido mais tarde; se continuar assim, veja o `/health`. |
+
+As outras rejeições ligadas a município, regime e serviço estão em [Rejeições](docs/rejeicoes.md).
 
 ## Limitações
 
 Este emissor cobre o caso mais comum de prestação de serviços:
 
+- prestador ME, EPP ou MEI do Simples Nacional, identificado pelo CNPJ;
 - serviço prestado no município do prestador, com ISSQN devido e não retido;
 - sem regime especial de tributação, deduções, descontos ou tributos federais destacados na nota;
+- sem o destaque do IBS e da CBS;
 - tomador com CPF ou CNPJ, sem endereço, ou nota sem tomador;
 - uma série de DPS e nenhuma substituição de nota.
 
+Serviços de obra, de eventos e de fornecimento de mão de obra pedem dados que o emissor não envia. A lista completa
+está em [Conformidade do emissor](docs/conformidade.md).
+
 O governo muda o leiaute por meio de notas técnicas e costuma liberar as mudanças antes na produção restrita, que hoje
-já usa o leiaute da NT 009. Quando a produção mudar, o `src/dps.ts` precisa acompanhar.
+já usa o leiaute da NT 009. Quando a produção mudar, o `src/dps.ts` precisa acompanhar. Duas mudanças previstas atingem
+o Simples Nacional: os campos novos da NT 009 e, em 1º/1/2027, o IBS e a CBS. Veja
+[o que muda em 2027](docs/quem-pode-usar.md#o-que-muda-em-2027).
 
 ## Desenvolvimento
 
@@ -282,6 +338,7 @@ contador.
 
 ## Referências
 
+- [Municípios, regimes e regras da NFS-e Nacional](docs/README.md): a documentação deste projeto
 - [Portal da NFS-e](https://www.gov.br/nfse)
 - [Documentação técnica](https://www.gov.br/nfse/pt-br/biblioteca/documentacao-tecnica)
 - [Manual das APIs para contribuintes (PDF)](https://www.gov.br/nfse/pt-br/biblioteca/documentacao-tecnica/documentacao-atual/manual-contribuintes-apis-adn-sistema-nacional-nfse.pdf)
