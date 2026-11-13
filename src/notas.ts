@@ -49,6 +49,8 @@ export interface Repo {
   get(id: string): Promise<Nota | null>
   /** Inserts or replaces the nota. */
   save(nota: Nota): Promise<void>
+  /** Inserts the nota only if its id is new; false when another call got there first. */
+  create(nota: Nota): Promise<boolean>
   /** Next DPS number of the series; never repeats. */
   nextNumber(): Promise<number>
   list(options: { status?: NotaStatus; limit: number; before?: string }): Promise<Nota[]>
@@ -177,11 +179,14 @@ export const createNotas = ({ repo, gov, config, now = () => new Date() }: { rep
       if (typeof found === 'object') return markIssued(existing, found.accessKey, found.nfseXml)
       if (found === 'unreachable') return existing
     }
+    if (existing) {
+      return send({ ...existing, request: existing.status === 'rejected' || existing.status === 'pending' ? request : existing.request })
+    }
     const at = now().toISOString()
-    const nota: Nota = existing
-      ? { ...existing, request: existing.status === 'rejected' || existing.status === 'pending' ? request : existing.request }
-      : { id: request.id, status: 'pending', request, dpsNumber: await repo.nextNumber(), dpsId: '', createdAt: at, updatedAt: at }
-    if (!existing) await repo.save(nota)
+    const nota: Nota = { id: request.id, status: 'pending', request, dpsNumber: await repo.nextNumber(), dpsId: '', createdAt: at, updatedAt: at }
+    // A concurrent call for the same id created it first: follow its nota, so both send the same DPS number and the
+    // government's duplicate check (E0014) keeps it to one NFS-e. The number reserved here is skipped.
+    if (!(await repo.create(nota))) return issue(request)
     return send(nota)
   }
 
