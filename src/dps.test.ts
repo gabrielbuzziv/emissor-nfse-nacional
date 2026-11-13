@@ -83,6 +83,15 @@ describe('buildDps', () => {
     expect(notOptedIn).not.toContain('regApTribSN')
   })
 
+  // Rules E0162, E0174, E0583, E0600 and E0710: a MEI states no Simples apuration, special regime, retention, rate or Simples rate.
+  it.each<Environment>(['production', 'restricted'])('builds what the rules ask of a MEI in the %s schema', (environment) => {
+    const mei: Issuer = { cnpj: issuer.cnpj, cityCode: issuer.cityCode, simplesNacionalOption: '2' }
+    const { xml } = buildDps(input({ environment, issuer: mei }))
+    expect(schemaErrors(xml, environment, 'DPS_v1.01.xsd')).toBe('')
+    expect(xml).toContain('<regTrib><opSimpNac>2</opSimpNac><regEspTrib>0</regEspTrib></regTrib>')
+    expect(xml).toContain('<tribMun><tribISSQN>1</tribISSQN><tpRetISSQN>1</tpRetISSQN></tribMun><totTrib><indTotTrib>0</indTotTrib></totTrib>')
+  })
+
   it('formats money and Brasília time', () => {
     expect(buildDps(input({ valueCents: 1990 })).xml).toContain('<vServ>19.90</vServ>')
     expect(brasiliaDateTime(new Date('2026-11-12T02:30:00Z'))).toBe('2026-11-11T23:30:00-03:00')
