@@ -82,6 +82,34 @@ export const notaError = (status: number, message: string): Error & { status: nu
 export const isNotaError = (error: unknown): error is Error & { status: number } =>
   error instanceof Error && typeof (error as { status?: unknown }).status === 'number'
 
+/** TSEmail in the layout (1 to 80 characters) and rule E0247. */
+const EMAIL = /^[a-zA-Z0-9_%+-]+(?:\.[a-zA-Z0-9_%+-]+)*@(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]*[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$/
+
+export const parseIssueRequest = (body: unknown): IssueRequest | string => {
+  if (!body || typeof body !== 'object') return 'body must be a JSON object'
+  const { id, competence, taker, serviceCode, nbsCode, description, valueCents } = body as Record<string, unknown>
+  if (typeof id !== 'string' || !id || id.length > 200) return 'id: a string up to 200 characters'
+  if (competence !== undefined && (typeof competence !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(competence))) return 'competence: YYYY-MM-DD'
+  if (typeof serviceCode !== 'string' || !/^\d{6}$/.test(serviceCode)) return 'serviceCode: the 6-digit national code (cTribNac)'
+  if (nbsCode !== undefined && (typeof nbsCode !== 'string' || !/^\d{9}$/.test(nbsCode))) return 'nbsCode: the 9-digit NBS code'
+  if (typeof description !== 'string' || !description.trim()) return 'description: required'
+  if (typeof valueCents !== 'number' || !Number.isInteger(valueCents) || valueCents <= 0) return 'valueCents: a positive integer'
+  if (taker !== undefined) {
+    const { taxId, name, email } = (taker ?? {}) as Record<string, unknown>
+    const taxDigits = typeof taxId === 'string' ? taxId.replace(/\D/g, '') : ''
+    if (taxDigits.length !== 11 && taxDigits.length !== 14) return 'taker.taxId: a CPF or CNPJ'
+    if (typeof name !== 'string' || !name.trim()) return 'taker.name: required'
+    if (email !== undefined) {
+      if (typeof email !== 'string') return 'taker.email: a string'
+      const trimmedEmail = email.trim()
+      if (!trimmedEmail || trimmedEmail.length > 80 || !EMAIL.test(trimmedEmail)) return 'taker.email: a valid email up to 80 characters'
+      return { id, competence, serviceCode, nbsCode, description, valueCents, taker: { taxId: taxDigits, name, email: trimmedEmail } }
+    }
+    return { id, competence, serviceCode, nbsCode, description, valueCents, taker: { taxId: taxDigits, name } }
+  }
+  return { id, competence, serviceCode, nbsCode, description, valueCents }
+}
+
 const DUPLICATE_DPS = 'E0014'
 const MAX_NUMBER_COLLISIONS = 5
 const ALREADY_CANCELED = /j[aá] (foi |est[aá] )?cancelad|cancelamento.*j[aá]/i

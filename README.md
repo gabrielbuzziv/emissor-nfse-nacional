@@ -114,7 +114,7 @@ Preencha os `vars` do `wrangler.jsonc`:
 | `ISSUER_CNPJ` | O CNPJ do prestador. |
 | `ISSUER_CITY_CODE` | O código IBGE do município do CNPJ, com 7 dígitos ([consulte no IBGE](https://www.ibge.gov.br/explica/codigos-dos-municipios.php)). |
 | `ISSUER_MUNICIPAL_SUBSCRIPTION` | A inscrição municipal. Deixe vazio, a menos que o município tenha cadastrado a empresa no Cadastro Nacional de Contribuintes (CNC). Com esse cadastro, ela é obrigatória (erro E0116); sem ele, a nota é recusada com o erro E0120. |
-| `ISSUER_SIMPLES_OPTION` | A situação no Simples Nacional: `2` = MEI; `3` = ME/EPP. O valor `1` (não optante) é aceito, mas o emissor ainda não atende empresas fora do Simples. |
+| `ISSUER_SIMPLES_OPTION` | A situação no Simples Nacional: `2` = MEI; `3` = ME/EPP. Empresas fora do Simples (`1`) ainda não são atendidas: veja [Quem pode usar](docs/quem-pode-usar.md#empresas-fora-do-simples). |
 | `ISSUER_SIMPLES_APURATION` | Só para ME/EPP. `1` = tributos federais e municipal apurados pelo Simples Nacional, o caso mais comum. As outras opções estão no `wrangler.jsonc`. |
 | `ISSUER_SIMPLES_TOTAL_TAX_PERCENT` | Só para ME/EPP. A alíquota nominal da faixa do Simples em que a empresa está, que sai na nota como valor aproximado dos tributos (Lei 12.741/2012). Use ponto e 2 casas decimais, por exemplo `6.00`. |
 | `DPS_SERIES` | A série das DPS, de 1 a 49999, a faixa que o governo reserva à API. O padrão é `1`. |

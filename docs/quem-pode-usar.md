@@ -64,7 +64,7 @@ O que conferir:
 3. **Depende do município.** Fora do Simples, a empresa só emite pelo Emissor Nacional onde a prefeitura usa os
    emissores nacionais e já liberou o contribuinte. Nos outros municípios, ela emite no sistema da prefeitura.
 
-A configuração aceita `ISSUER_SIMPLES_OPTION` igual a `1`, mas, pelos motivos acima, as notas seriam recusadas.
+Por esses motivos, a configuração recusa `ISSUER_SIMPLES_OPTION` igual a `1`.
 
 ## Outros casos
 

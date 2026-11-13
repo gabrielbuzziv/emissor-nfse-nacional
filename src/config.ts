@@ -16,6 +16,8 @@ export type IssuerVars = Pick<
 
 /** pTotTribSN in the layout (TSDec2V2): up to 2 digits and, optionally, 2 decimals. */
 const SIMPLES_RATE = /^(0|0\.\d{2}|[1-9]\d?(\.\d{2})?)$/
+/** Rule E0010 reserves series 1 to 49999 for the API. */
+const isApiSeries = (value: string): boolean => /^[1-9]\d{0,4}$/.test(value) && Number(value) <= 49999
 
 /** What is missing or wrong in the vars, so a new install fails with a clear message instead of a rejected nota. */
 export const configProblems = (vars: IssuerVars): string[] => {
@@ -24,10 +26,10 @@ export const configProblems = (vars: IssuerVars): string[] => {
     [Object.keys(hosts).includes(vars.NFSE_ENVIRONMENT), 'NFSE_ENVIRONMENT: "production" or "restricted"'],
     [/^\d{14}$/.test((vars.ISSUER_CNPJ ?? '').replace(/\D/g, '')), 'ISSUER_CNPJ: the 14 digits of the CNPJ'],
     [/^\d{7}$/.test(vars.ISSUER_CITY_CODE ?? ''), 'ISSUER_CITY_CODE: the 7-digit IBGE code of the city'],
-    [['1', '2', '3'].includes(vars.ISSUER_SIMPLES_OPTION), 'ISSUER_SIMPLES_OPTION: 1 (not opted in), 2 (MEI) or 3 (ME/EPP)'],
+    [['2', '3'].includes(vars.ISSUER_SIMPLES_OPTION), 'ISSUER_SIMPLES_OPTION: 2 (MEI) or 3 (ME/EPP)'],
     [!isMeEpp || ['1', '2', '3'].includes(vars.ISSUER_SIMPLES_APURATION), 'ISSUER_SIMPLES_APURATION: 1, 2 or 3'],
     [!isMeEpp || SIMPLES_RATE.test(vars.ISSUER_SIMPLES_TOTAL_TAX_PERCENT ?? ''), 'ISSUER_SIMPLES_TOTAL_TAX_PERCENT: the approximate Simples rate, e.g. "6.00"'],
-    [/^\d{1,5}$/.test(vars.DPS_SERIES ?? ''), 'DPS_SERIES: up to 5 digits'],
+    [isApiSeries(vars.DPS_SERIES ?? ''), 'DPS_SERIES: 1 to 49999'],
   ]
   return checks.filter(([isValid]) => !isValid).map(([, problem]) => problem)
 }
