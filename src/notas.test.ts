@@ -106,6 +106,14 @@ describe('issue', () => {
     expect(fake.sent).toHaveLength(1)
   })
 
+  it('never issues twice when the same sale arrives twice at once', async () => {
+    const { notas, fake } = setup()
+    // A webhook delivered twice, or a client retrying before the first answer: both calls start before either saves.
+    const [first, second] = await Promise.all([notas.issue(request()), notas.issue(request())])
+    expect(fake.byDpsId.size).toBe(1)
+    expect(second.accessKey).toBe(first.accessKey)
+  })
+
   it('defaults the competence to the issue date in Brasília', async () => {
     const { notas, fake } = setup()
     await notas.issue(request({ competence: undefined }))
