@@ -26,8 +26,8 @@
     // Contribuintes (CNC). Com esse cadastro, ela é obrigatória (erro E0116); sem ele, o governo recusa a nota com o
     // erro E0120.
     "ISSUER_MUNICIPAL_SUBSCRIPTION": "",
-    // Situação no Simples Nacional: "2" = MEI; "3" = ME/EPP. O valor "1" (não optante) é aceito, mas o emissor ainda
-    // não atende empresas fora do Simples: veja docs/quem-pode-usar.md.
+    // Situação no Simples Nacional: "2" = MEI; "3" = ME/EPP. Empresas fora do Simples ("1") ainda não são atendidas:
+    // veja docs/quem-pode-usar.md.
     "ISSUER_SIMPLES_OPTION": "",
     // Só para ME/EPP. Regime de apuração: "1" = tributos federais e municipal pelo Simples Nacional; "2" = federais
     // pelo Simples e ISSQN por fora; "3" = federais e municipal por fora do Simples.

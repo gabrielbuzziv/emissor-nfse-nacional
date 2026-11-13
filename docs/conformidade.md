@@ -69,10 +69,7 @@ Pontos em que o emissor diverge das regras, encontrados na pesquisa de 13/11/202
 
 | Lacuna | Efeito | Situação |
 |---|---|---|
-| Para empresas fora do Simples, a DPS leva `indTotTrib`, que a regra E0713 proíbe nesse regime. | A nota seria recusada. | Aberta. A configuração ainda aceita `ISSUER_SIMPLES_OPTION` igual a `1`. |
-| A configuração aceita `DPS_SERIES` até 99999, mas a regra E0010 reserva à API a faixa de 1 a 49999. | Com uma série acima de 49999, a nota é recusada. | Aberta. Use uma série de 1 a 49999. |
 | O `"ok": true` do `/health?deep=1` só confere se o governo respondeu sobre o município. | Ele não avisa quando o município usa sistema próprio ou ainda não liberou a empresa. | Aberta. Leia os campos de `cityAgreement`, como explica [Municípios](municipios.md#como-conferir-o-seu-município). |
-| O e-mail do tomador não é validado antes do envio. | Um e-mail malformado faz o governo recusar a nota (regra E0247). | Aberta. Valide o e-mail no seu sistema. |
 
 ## O que vem pela frente
 
@@ -89,7 +86,7 @@ Pontos em que o emissor diverge das regras, encontrados na pesquisa de 13/11/202
 | ME/EPP, com o ISS apurado pelo Simples | DPS validada contra os XSDs da produção e da produção restrita; assinatura conferida com o `xmlsec1`. | Sim. |
 | MEI | DPS validada contra os dois XSDs, com os campos que as regras pedem do MEI. | Não. |
 | ME/EPP, com o ISS apurado fora do Simples | A configuração é validada. | Não. |
-| Empresa fora do Simples | Os testes conferem o leiaute, não a regra E0713. | Não. |
+| Empresa fora do Simples | A configuração recusa `ISSUER_SIMPLES_OPTION` igual a `1` (regra E0713). | Não. |
 | Município com sistema próprio, depois de 1º/11/2026 | Não se aplica. | Não confirmado. |
 
 Se você emitir em algum desses casos, conte o resultado numa

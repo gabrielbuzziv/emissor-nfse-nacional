@@ -2,7 +2,7 @@ import { Container } from '@cloudflare/containers'
 import { Hono, type MiddlewareHandler } from 'hono'
 import { configFrom, configProblems } from './config'
 import { hosts, type Environment } from './dps'
-import { createNotas, isNotaError, type Gov, type GovResult, type IssueRequest, type Nota, type NotaStatus } from './notas'
+import { createNotas, isNotaError, parseIssueRequest, type Gov, type GovResult, type Nota, type NotaStatus } from './notas'
 import { publicLookupUrl } from './danfse'
 import { createD1Repo } from './repo'
 
@@ -93,26 +93,6 @@ const view = async (env: Env, origin: string, nota: Nota, withXml = false): Prom
 }
 
 const STATUS_CODE: Record<NotaStatus, 200 | 202 | 422> = { issued: 200, canceled: 200, rejected: 422, pending: 202, unknown: 202 }
-
-const parseIssueRequest = (body: unknown): IssueRequest | string => {
-  if (!body || typeof body !== 'object') return 'body must be a JSON object'
-  const { id, competence, taker, serviceCode, nbsCode, description, valueCents } = body as Record<string, unknown>
-  if (typeof id !== 'string' || !id || id.length > 200) return 'id: a string up to 200 characters'
-  if (competence !== undefined && (typeof competence !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(competence))) return 'competence: YYYY-MM-DD'
-  if (typeof serviceCode !== 'string' || !/^\d{6}$/.test(serviceCode)) return 'serviceCode: the 6-digit national code (cTribNac)'
-  if (nbsCode !== undefined && (typeof nbsCode !== 'string' || !/^\d{9}$/.test(nbsCode))) return 'nbsCode: the 9-digit NBS code'
-  if (typeof description !== 'string' || !description.trim()) return 'description: required'
-  if (typeof valueCents !== 'number' || !Number.isInteger(valueCents) || valueCents <= 0) return 'valueCents: a positive integer'
-  if (taker !== undefined) {
-    const { taxId, name, email } = (taker ?? {}) as Record<string, unknown>
-    const taxDigits = typeof taxId === 'string' ? taxId.replace(/\D/g, '') : ''
-    if (taxDigits.length !== 11 && taxDigits.length !== 14) return 'taker.taxId: a CPF or CNPJ'
-    if (typeof name !== 'string' || !name.trim()) return 'taker.name: required'
-    if (email !== undefined && typeof email !== 'string') return 'taker.email: a string'
-    return { id, competence, serviceCode, nbsCode, description, valueCents, taker: { taxId: taxDigits, name, ...(email ? { email } : {}) } }
-  }
-  return { id, competence, serviceCode, nbsCode, description, valueCents }
-}
 
 const timingSafeEqual = (a: string, b: string): boolean => {
   const encoder = new TextEncoder()

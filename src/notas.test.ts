@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { xmlValue } from './dps'
-import { createNotas, type Config, type Gov, type GovResult, type IssueRequest } from './notas'
+import { createNotas, parseIssueRequest, type Config, type Gov, type GovResult, type IssueRequest } from './notas'
 import { createMemoryRepo } from './repo'
 
 const config: Config = {
@@ -216,5 +216,39 @@ describe('pdf', () => {
     await notas.issue(request())
     const pdf = await notas.pdf('pedido:1001')
     expect(new TextDecoder().decode(pdf ?? new Uint8Array())).toBe('%PDF-1.4')
+  })
+})
+
+describe('parseIssueRequest', () => {
+  it('accepts a request without taker email or with a trimmed valid email', () => {
+    expect(parseIssueRequest(request())).toEqual(request())
+    expect(parseIssueRequest(request({ taker: { taxId: '123.456.789-09', name: 'Maria Silva', email: '  maria@example.com  ' } }))).toEqual(
+      request({ taker: { taxId: '12345678909', name: 'Maria Silva', email: 'maria@example.com' } }),
+    )
+  })
+
+  it('rejects an empty, malformed or overlong taker email (rule E0247)', () => {
+    for (const email of [
+      '',
+      '   ',
+      'maria',
+      'maria@',
+      '@example.com',
+      'maria@example',
+      'a..b@example.com',
+      '.maria@example.com',
+      'maria.@example.com',
+      'a@-x.com',
+      'a@x-.com',
+      'maria silva@example.com',
+      `${'a'.repeat(69)}@example.com`,
+    ]) {
+      expect(parseIssueRequest(request({ taker: { taxId: '12345678909', name: 'Maria Silva', email } }))).toBe(
+        'taker.email: a valid email up to 80 characters',
+      )
+    }
+    expect(parseIssueRequest(request({ taker: { taxId: '12345678909', name: 'Maria Silva', email: `${'a'.repeat(68)}@example.com` } }))).toMatchObject({
+      taker: { email: `${'a'.repeat(68)}@example.com` },
+    })
   })
 })
