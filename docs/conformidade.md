@@ -19,14 +19,16 @@ Esta página compara a DPS que o `src/dps.ts` monta com as regras de negócio do
 | `regTrib/opSimpNac` | `ISSUER_SIMPLES_OPTION`. | E0160 |
 | `regTrib/regApTribSN` | `ISSUER_SIMPLES_APURATION`, só para ME/EPP. | E0162 e E0166 |
 | `regTrib/regEspTrib` | `0`: nenhum regime especial. | E0174 e E0175 |
-| `toma` | CPF ou CNPJ, nome e e-mail. Sem endereço. A nota também pode sair sem tomador. | E0188, E0190, E0202, E0207, E0234 e E0247 |
+| `toma` | CPF ou CNPJ, nome e e-mail, sem endereço. No exterior: NIF ou `cNaoNIF`, nome, endereço no exterior e e-mail. A nota também pode sair sem tomador. | E0188, E0190, E0202, E0207, E0223, E0233, E0234, E0242, E0246 e E0247 |
 | `serv/locPrest/cLocPrestacao` | Sempre o município do prestador. | E0302 |
 | `cServ/cTribNac` | O `serviceCode` do pedido. | E0310 e E0312 |
 | `cServ/cNBS` | O `nbsCode` do pedido, quando informado. | E0316 |
 | `cServ/xDescServ` | A `description` do pedido, com até 2.000 caracteres. | |
+| `serv/comExt` | Só na exportação. Veja [Exportação de serviço](#exportação-de-serviço). | E0330 a E0356 |
 | `valores/vServPrest/vServ` | O `valueCents` do pedido, em reais. | |
-| `tribMun/tribISSQN` | `1`: operação tributável. | E0540 |
-| `tribMun/tpRetISSQN` | `1`: ISSQN não retido. | E0583 |
+| `tribMun/tribISSQN` | `1`: operação tributável. Na exportação, `3`. | E0529, E0530 e E0540 |
+| `tribMun/cPaisResult` | Só na exportação: o `export.resultCountry`. | E0590 e E0591 |
+| `tribMun/tpRetISSQN` | `1`: ISSQN não retido. | E0580 e E0583 |
 | `tribMun/pAliq` | Não é enviado. | E0600, E0617, E0625 e E0635 |
 | `totTrib` | `pTotTribSN` para ME/EPP e `indTotTrib` igual a `0` para os demais. | E0710, E0712 e E0713 |
 
@@ -50,16 +52,43 @@ obra e de evento. Pela tabela de incidência do Anexo I, que tem 337 códigos na
 Além do código nacional, o município precisa ter o serviço parametrizado como tributável. Veja
 [O que cada município define](regras-municipais.md#lista-de-serviços).
 
+## Exportação de serviço
+
+A aba "EXPORTACAO_EMISSÃO_NFS-e" do Anexo I lista os cenários de comércio exterior. Como o local da prestação é sempre o
+município do prestador, a exportação cai nos cenários 2, 30, 58, 62, 72 e 76, que exigem o NBS, o país do resultado e
+o grupo `comExt`.
+
+| Campo | O que o emissor envia | Regras conferidas |
+|---|---|---|
+| `tribMun/tribISSQN` | `3`. | E0529: recusado quando o ISSQN do serviço é devido no local da prestação (os 57 códigos dessa coluna da tabela de incidência). |
+| `tribMun/cPaisResult` | `export.resultCountry`. | E0590 e E0591 |
+| `tribMun/tpRetISSQN` | `1`. | E0580 |
+| `tribMun/pAliq` | Não é enviado. | E0602 |
+| `regTrib/regEspTrib` | `0`. | E0172 |
+| `cServ/cNBS` | Obrigatório no pedido. | E0318 |
+| `comExt/mdPrestacao` | `export.mode`, `1` por padrão. Nunca `0`. | E0333 |
+| `comExt/vincPrest` | `export.relationship`, `0` por padrão. | |
+| `comExt/tpMoeda` e `vServMoeda` | `export.currency` e `export.foreignValueCents`. | |
+| `comExt/mecAFComexP` e `mecAFComexT` | `01` (nenhum) por padrão. Nunca `00`. | E0341 e E0343 |
+| `comExt/movTempBens` | `1`: sem movimentação temporária de bens, então sem `nDI` e `nRE`. | E0345 e E0354 |
+| `comExt/mdic` | `1` quando `export.shareWithMdic` é `true`; senão, `0`. | |
+| `toma/NIF` ou `toma/cNaoNIF` | `taker.abroad.nif` ou `taker.abroad.noNifReason`. | E0223 e E0233 |
+| `toma/end/endExt` | `taker.abroad.address`; o bairro, quando falta, é a cidade. | E0242 e E0246 |
+
+Um tomador no exterior sempre exige o grupo `comExt` (regra E0330), então o emissor recusa o pedido com tomador no
+exterior e sem `export`.
+
 ## O que o emissor não faz
 
 - Retenção do ISSQN pelo tomador ou pelo intermediário.
-- Imunidade, isenção, exportação de serviço e não incidência.
+- Imunidade, isenção e não incidência.
 - Regime especial de tributação, benefício municipal, dedução, redução e desconto.
 - Tributos federais destacados na nota (PIS, Cofins, CSLL, IRRF e contribuição previdenciária).
 - IBS e CBS (grupo `IBSCBS`).
 - Código de tributação municipal (`cTribMun`).
-- Endereço do tomador, tomador no exterior e intermediário.
-- Serviço prestado em outro município ou no exterior.
+- Endereço do tomador no Brasil e intermediário.
+- Serviço prestado em outro município ou no exterior (`cPaisPrestacao`).
+- Exportação vinculada a movimentação temporária de bens (`nDI` e `nRE`).
 - Substituição de nota e solicitação de análise fiscal para cancelamento.
 - Nota emitida por pessoa física, pelo tomador ou pelo intermediário.
 

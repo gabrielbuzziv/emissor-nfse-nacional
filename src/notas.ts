@@ -1,5 +1,5 @@
 import { renderDanfse } from './danfse'
-import { buildCancellation, buildDps, brasiliaDate, hosts, xmlValue, type Environment, type Issuer, type Taker } from './dps'
+import { buildCancellation, buildDps, brasiliaDate, hosts, xmlValue, type Environment, type Issuer, type ServiceExport, type Taker } from './dps'
 
 /** What a client asks for. `id` is the client's own key for the sale: asking twice never issues twice. */
 export interface IssueRequest {
@@ -13,6 +13,8 @@ export interface IssueRequest {
   nbsCode?: string
   description: string
   valueCents: number
+  /** Export of services: no ISSQN, with the foreign trade group. */
+  export?: ServiceExport
 }
 
 export interface GovError {
@@ -131,7 +133,8 @@ export const createNotas = ({ repo, gov, config, now = () => new Date() }: { rep
     const nfseXml = nfse.reached ? (nfse.json.nfseXml as string | undefined) : undefined
     if (!nfseXml) return { accessKey }
     const sameValue = xmlValue(nfseXml, 'vServ') === (nota.request.valueCents / 100).toFixed(2)
-    const takerId = nota.request.taker?.taxId.replace(/\D/g, '')
+    const { taker } = nota.request
+    const takerId = taker?.abroad ? taker.abroad.nif : taker?.taxId?.replace(/\D/g, '')
     const sameTaker = !takerId || nfseXml.includes(`>${takerId}<`)
     return sameValue && sameTaker ? { accessKey, nfseXml } : 'not-ours'
   }
@@ -150,6 +153,7 @@ export const createNotas = ({ repo, gov, config, now = () => new Date() }: { rep
       nbsCode: nota.request.nbsCode,
       description: nota.request.description,
       valueCents: nota.request.valueCents,
+      export: nota.request.export,
     })
     const sending = await save(nota, { dpsId, status: 'unknown' })
     const result = await gov.sendDps(sefin, xml)

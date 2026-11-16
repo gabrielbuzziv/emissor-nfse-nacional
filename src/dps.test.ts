@@ -3,7 +3,7 @@ import { mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { brasiliaDateTime, buildCancellation, buildDps, dpsId, type DpsInput, type Environment, type Issuer } from './dps'
+import { brasiliaDateTime, buildCancellation, buildDps, dpsId, type DpsInput, type Environment, type Issuer, type Taker } from './dps'
 
 const issuer: Issuer = {
   cnpj: '11.222.333/0001-81',
@@ -90,6 +90,57 @@ describe('buildDps', () => {
     expect(schemaErrors(xml, environment, 'DPS_v1.01.xsd')).toBe('')
     expect(xml).toContain('<regTrib><opSimpNac>2</opSimpNac><regEspTrib>0</regEspTrib></regTrib>')
     expect(xml).toContain('<tribMun><tribISSQN>1</tribISSQN><tpRetISSQN>1</tpRetISSQN></tribMun><totTrib><indTotTrib>0</indTotTrib></totTrib>')
+  })
+
+  describe('export of services', () => {
+    const abroad: Taker = {
+      name: 'Acme Inc.',
+      email: 'billing@acme.example',
+      abroad: {
+        nif: '12-3456789',
+        address: { country: 'us', postalCode: '94105', city: 'San Francisco', region: 'CA', street: 'Market St', number: '1' },
+      },
+    }
+    const exported = (overrides: Partial<DpsInput> = {}) =>
+      input({ taker: abroad, serviceCode: '010101', nbsCode: '115022000', export: { resultCountry: 'us', currency: '220', foreignValueCents: 1800 }, ...overrides })
+
+    it.each<Environment>(['production', 'restricted'])('passes the official %s schema', (environment) => {
+      expect(schemaErrors(buildDps(exported({ environment })).xml, environment, 'DPS_v1.01.xsd')).toBe('')
+    })
+
+    it.each<Environment>(['production', 'restricted'])('passes the %s schema for a MEI and a taker without NIF', (environment) => {
+      const mei: Issuer = { cnpj: issuer.cnpj, cityCode: issuer.cityCode, simplesNacionalOption: '2' }
+      const taker: Taker = { name: 'Acme', abroad: { noNifReason: '1', address: { ...abroad.abroad!.address, complement: 'Suite 5', district: 'SoMa' } } }
+      const { xml } = buildDps(exported({ environment, issuer: mei, taker }))
+      expect(schemaErrors(xml, environment, 'DPS_v1.01.xsd')).toBe('')
+      expect(xml).toContain('<toma><cNaoNIF>1</cNaoNIF><xNome>Acme</xNome><end><endExt><cPais>US</cPais>')
+      expect(xml).toContain('<xCpl>Suite 5</xCpl><xBairro>SoMa</xBairro></end>')
+    })
+
+    // Rules E0242, E0233: a NIF needs the name and the address abroad; the neighbourhood falls back to the city.
+    it('identifies the taker abroad by NIF and foreign address', () => {
+      expect(buildDps(exported()).xml).toContain(
+        '<toma><NIF>12-3456789</NIF><xNome>Acme Inc.</xNome><end><endExt><cPais>US</cPais><cEndPost>94105</cEndPost><xCidade>San Francisco</xCidade><xEstProvReg>CA</xEstProvReg></endExt><xLgr>Market St</xLgr><nro>1</nro><xBairro>San Francisco</xBairro></end><email>billing@acme.example</email></toma>',
+      )
+    })
+
+    // Rules E0330, E0333, E0341, E0343, E0345, E0354: comExt with no "unknown" values and no DI/RE.
+    it('adds the foreign trade group after the service code', () => {
+      expect(buildDps(exported()).xml).toContain(
+        '</cServ><comExt><mdPrestacao>1</mdPrestacao><vincPrest>0</vincPrest><tpMoeda>220</tpMoeda><vServMoeda>18.00</vServMoeda><mecAFComexP>01</mecAFComexP><mecAFComexT>01</mecAFComexT><movTempBens>1</movTempBens><mdic>0</mdic></comExt></serv>',
+      )
+      const custom = buildDps(exported({ export: { resultCountry: 'DE', currency: '978', foreignValueCents: 5, mode: '2', relationship: '1', issuerSupport: '02', takerSupport: '24', shareWithMdic: true } })).xml
+      expect(custom).toContain('<comExt><mdPrestacao>2</mdPrestacao><vincPrest>1</vincPrest><tpMoeda>978</tpMoeda><vServMoeda>0.05</vServMoeda><mecAFComexP>02</mecAFComexP><mecAFComexT>24</mecAFComexT><movTempBens>1</movTempBens><mdic>1</mdic></comExt>')
+    })
+
+    // Rules E0580, E0590, E0602: export of services, the result country, no retention and no rate.
+    it('states the export with the result country', () => {
+      expect(buildDps(exported()).xml).toContain('<tribMun><tribISSQN>3</tribISSQN><cPaisResult>US</cPaisResult><tpRetISSQN>1</tpRetISSQN></tribMun><totTrib><pTotTribSN>6.00</pTotTribSN></totTrib>')
+    })
+
+    it('keeps the service in the issuer city', () => {
+      expect(buildDps(exported()).xml).toContain('<locPrest><cLocPrestacao>3550308</cLocPrestacao></locPrest>')
+    })
   })
 
   it('formats money and Brasília time', () => {

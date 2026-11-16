@@ -52,6 +52,16 @@ Depois de corrigir a causa, envie o mesmo pedido de novo, com o mesmo `id`.
 | E0202 | O CNPJ do tomador é igual ao do prestador. | Uma empresa não emite nota para ela mesma. |
 | E0247 | O e-mail do tomador é inválido. | Corrija o `taker.email` ou envie o pedido sem ele. |
 
+## Exportação de serviço
+
+| Código | O que quer dizer | O que fazer |
+|---|---|---|
+| E0529 | O ISSQN do serviço é devido no local da prestação, e esse local é o Brasil: não é exportação. | Emita a nota sem `export`. Confira o código com o contador. |
+| E0590 | Faltou o país onde o resultado do serviço acontece. | Preencha `export.resultCountry`. |
+| E0318 | Uma nota para tomador no exterior precisa do código NBS. | Preencha `nbsCode`. |
+| E0246 | O país do endereço do tomador não existe ou é o Brasil. | Corrija `taker.abroad.address.country`. |
+| E0316 | O código NBS não existe. | Corrija o `nbsCode`. |
+
 ## Cancelamento
 
 No cancelamento, o `POST /v1/notas/:id/cancel` responde 422, com os erros em `cancelErrors`.
