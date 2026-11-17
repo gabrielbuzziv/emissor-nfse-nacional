@@ -1,6 +1,6 @@
 import { PDFDocument, rgb, StandardFonts, type PDFFont, type PDFPage } from 'pdf-lib'
 import { encode } from 'uqr'
-import { xmlValue } from './dps'
+import { unescapeXml, xmlValue } from './dps'
 
 /**
  * Our own rendering of the NFS-e (DANFSe) from the authorized XML, used when the government's DANFSe
@@ -25,9 +25,6 @@ const RET_ISSQN: Record<string, string> = { '1': 'Não retido', '2': 'Retido pel
 
 /** The part of the XML between `<tag>` and `</tag>`, so fields of the provider and the taker do not mix. */
 const section = (xml: string, tag: string): string => xml.match(new RegExp(`<${tag}(?:\\s[^>]*)?>([\\s\\S]*?)</${tag}>`))?.[1] ?? ''
-
-const unescapeXml = (text: string): string =>
-  text.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&amp;/g, '&')
 
 /** The standard fonts only encode WinAnsi; anything else (a taker abroad named in another script, say) would throw. */
 const printable = (text: string): string =>

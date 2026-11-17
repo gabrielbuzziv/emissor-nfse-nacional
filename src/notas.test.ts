@@ -158,6 +158,21 @@ describe('issue', () => {
     expect(fake.sent).toHaveLength(2)
   })
 
+  it('recognizes its own export to a taker abroad whose NIF the DPS had to trim and escape', async () => {
+    const { notas, fake, repo } = setup()
+    const abroad = request({
+      taker: { name: 'Acme & Co', abroad: { nif: ' 12-34&56 ' } },
+      nbsCode: '115022000',
+      export: { resultCountry: 'US', currency: '220', foreignValueCents: 1800 },
+    })
+    fake.sendScript.push('lose-after-issuing')
+    const unknown = await notas.issue(abroad)
+    await repo.save({ ...unknown, status: 'pending' })
+    const issued = await notas.issue(abroad)
+    expect(issued).toMatchObject({ status: 'issued', dpsNumber: unknown.dpsNumber })
+    expect(fake.byDpsId.size).toBe(1)
+  })
+
   it('moves to the next DPS number when the number belongs to an NFS-e issued elsewhere', async () => {
     const { notas, fake } = setup()
     // DPS number 1 was used by the government portal for another sale.

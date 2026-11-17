@@ -1,5 +1,5 @@
 import { renderDanfse } from './danfse'
-import { buildCancellation, buildDps, brasiliaDate, hosts, xmlValue, type Environment, type Issuer, type ServiceExport, type Taker } from './dps'
+import { buildCancellation, buildDps, brasiliaDate, hosts, unescapeXml, xmlValue, type Environment, type Issuer, type ServiceExport, type Taker } from './dps'
 
 /** What a client asks for. `id` is the client's own key for the sale: asking twice never issues twice. */
 export interface IssueRequest {
@@ -134,8 +134,10 @@ export const createNotas = ({ repo, gov, config, now = () => new Date() }: { rep
     if (!nfseXml) return { accessKey }
     const sameValue = xmlValue(nfseXml, 'vServ') === (nota.request.valueCents / 100).toFixed(2)
     const { taker } = nota.request
-    const takerId = taker?.abroad ? taker.abroad.nif : taker?.taxId?.replace(/\D/g, '')
-    const sameTaker = !takerId || nfseXml.includes(`>${takerId}<`)
+    // The DPS carries the NIF trimmed and escaped, so compare the value the NFS-e holds, not the raw request.
+    const nif = taker?.abroad?.nif?.trim()
+    const taxId = taker?.taxId?.replace(/\D/g, '')
+    const sameTaker = nif ? unescapeXml(xmlValue(nfseXml, 'NIF') ?? '') === nif : !taxId || nfseXml.includes(`>${taxId}<`)
     return sameValue && sameTaker ? { accessKey, nfseXml } : 'not-ours'
   }
 

@@ -265,5 +265,8 @@ export const buildCancellation = (input: CancellationInput): string => {
   return `<?xml version="1.0" encoding="UTF-8"?><pedRegEvento xmlns="${NFSE_NS}" versao="${LAYOUT_VERSION}"><infPedReg Id="${id}">${body}</infPedReg></pedRegEvento>`
 }
 
+export const unescapeXml = (text: string): string =>
+  text.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&amp;/g, '&')
+
 /** First match of `<tag>value</tag>` in an XML document. */
 export const xmlValue = (xml: string, tag: string): string | undefined => xml.match(new RegExp(`<${tag}>([^<]*)</${tag}>`))?.[1]

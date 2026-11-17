@@ -22,7 +22,7 @@ const parseTaker = (taker: unknown): Taker | string => {
   if ((nif === undefined) === (noNifReason === undefined)) return 'taker.abroad: nif or noNifReason, one of the two'
   if (nif !== undefined && !isText(nif, 40)) return 'taker.abroad.nif: up to 40 characters'
   if (noNifReason !== undefined && noNifReason !== '1' && noNifReason !== '2') return 'taker.abroad.noNifReason: "1" (exempt) or "2" (not required)'
-  const identity = nif !== undefined ? { nif: nif as string } : { noNifReason: noNifReason as '1' | '2' }
+  const identity = nif !== undefined ? { nif: (nif as string).trim() } : { noNifReason: noNifReason as '1' | '2' }
   // Rule E0242: a NIF needs the address abroad; without one, the address is optional.
   if (address === undefined) return nif !== undefined ? 'taker.abroad.address: required with a nif' : { ...contact, abroad: identity }
   const { country, postalCode, city, region, street, number, complement, district } = (address ?? {}) as Record<string, unknown>
