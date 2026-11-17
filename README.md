@@ -14,6 +14,7 @@ notas em produção para uma ME/EPP. Empresas fora do Simples ainda não são at
 - Nunca emite duas notas para a mesma venda: você escolhe o `id`, e repetir o pedido devolve a mesma nota.
 - Se a resposta do governo se perder, ele confere se a nota foi emitida antes de enviar de novo.
 - Cancela notas.
+- Substitui uma nota emitida por outra corrigida; o governo cancela a antiga.
 - Gera o PDF (DANFSe): usa o do governo quando o serviço dele responde; se não, gera um a partir do XML autorizado,
   com QR code para a consulta pública.
 - Cria links assinados do PDF e do XML, que podem ir no e-mail do cliente.
@@ -228,6 +229,7 @@ POST /v1/notas
 | `description` | Obrigatório. A descrição do serviço, com até 2.000 caracteres. |
 | `valueCents` | Obrigatório. O valor do serviço em centavos (`9700` é R$ 97,00). |
 | `export` | Só para exportação de serviço. Veja abaixo. |
+| `replaces` | Só para substituir uma nota. Veja [Substituir](#substituir). |
 
 A resposta é a nota, e o código HTTP diz o que aconteceu:
 
@@ -301,9 +303,42 @@ opcional; o governo exige de 15 a 255 caracteres, e textos menores são completa
   prefeitura, o que este emissor não faz.
 - **409**: a nota não está emitida. **404**: a nota não existe. **502**: o governo não respondeu; tente de novo.
 
+### Substituir
+
+Para corrigir uma nota já emitida, emita uma nova, com outro `id` e todos os campos já corrigidos, e diga em
+`replaces` qual ela substitui. Quando a
+nova é emitida, o governo cancela a antiga, e o emissor marca a antiga como `replaced`, com o `id` da nova em
+`replacedBy`.
+
+```json
+POST /v1/notas
+{
+  "id": "invoice-2001-b",
+  "taker": { "name": "Acme Inc.", "abroad": { "noNifReason": "2" } },
+  "serviceCode": "010101",
+  "nbsCode": "115022000",
+  "description": "Desenvolvimento de software sob encomenda",
+  "valueCents": 1000000,
+  "export": { "resultCountry": "US", "currency": "220", "foreignValueCents": 180000 },
+  "replaces": { "id": "invoice-2001", "reasonCode": "99", "reason": "Correção do valor em moeda estrangeira" }
+}
+```
+
+| Campo | O que é |
+|---|---|
+| `replaces.id` | O `id` da nota a substituir, emitida por este emissor. Ela precisa estar emitida (`issued`). |
+| `replaces.accessKey` | No lugar do `id`, a chave de acesso (50 dígitos) de uma nota emitida fora deste emissor, como no portal. |
+| `replaces.reasonCode` | `01` desenquadramento do Simples Nacional, `02` enquadramento no Simples Nacional, `03` inclusão retroativa de imunidade ou isenção, `04` exclusão retroativa de imunidade ou isenção, `05` rejeição pelo tomador ou pelo intermediário, `99` outros (o padrão). |
+| `replaces.reason` | O motivo, de 15 a 255 caracteres. Obrigatório com `99`. |
+
+As respostas são as da emissão, e mais estas: **404** se a nota do `replaces.id` não existe e **409** se ela não está
+emitida. O prazo e as condições para substituir
+[dependem do município](docs/regras-municipais.md#substituição).
+
 ### Listar
 
-`GET /v1/notas?status=issued&limit=50`: o `status` filtra (`pending`, `unknown`, `issued`, `rejected` ou `canceled`), e
+`GET /v1/notas?status=issued&limit=50`: o `status` filtra (`pending`, `unknown`, `issued`, `rejected`, `canceled` ou
+`replaced`), e
 o `limit` vai até 100 (o padrão é 50). Para a página seguinte, passe em `before` o `createdAt` da última nota da página.
 
 ### Fluxo recomendado

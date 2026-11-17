@@ -93,6 +93,17 @@ export interface DpsInput {
   description: string
   valueCents: number
   export?: ServiceExport
+  /** The nota this DPS replaces; the government cancels it once the new one is issued. */
+  replaces?: Replacement
+}
+
+export interface Replacement {
+  /** Access key of the nota being replaced, 50 digits. */
+  accessKey: string
+  /** 01 to 05 as in the layout, or 99 = other (then `reason` is required). */
+  reasonCode: '01' | '02' | '03' | '04' | '05' | '99'
+  /** 15 to 255 characters. */
+  reason?: string
 }
 
 export const NFSE_NS = 'http://www.sped.fazenda.gov.br/nfse'
@@ -203,6 +214,13 @@ export const buildDps = (input: DpsInput): { id: string; xml: string } => {
     // Produção restrita already runs the NT 009 layout (schema 1.02), which requires finNFSe here.
     input.environment === 'restricted' ? el('finNFSe', '0') : '',
     el('cLocEmi', issuer.cityCode),
+    input.replaces
+      ? el('subst', [
+          el('chSubstda', input.replaces.accessKey),
+          el('cMotivo', input.replaces.reasonCode),
+          input.replaces.reason ? el('xMotivo', input.replaces.reason.trim().padEnd(15, '.').slice(0, 255)) : '',
+        ])
+      : '',
     el('prest', [
       el('CNPJ', digits(issuer.cnpj)),
       opt('IM', issuer.municipalSubscription),

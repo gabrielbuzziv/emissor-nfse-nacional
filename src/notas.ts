@@ -1,5 +1,5 @@
 import { renderDanfse } from './danfse'
-import { buildCancellation, buildDps, brasiliaDate, hosts, unescapeXml, xmlValue, type Environment, type Issuer, type ServiceExport, type Taker } from './dps'
+import { buildCancellation, buildDps, brasiliaDate, hosts, unescapeXml, xmlValue, type Environment, type Issuer, type Replacement, type ServiceExport, type Taker } from './dps'
 
 /** What a client asks for. `id` is the client's own key for the sale: asking twice never issues twice. */
 export interface IssueRequest {
@@ -15,6 +15,19 @@ export interface IssueRequest {
   valueCents: number
   /** Export of services: no ISSQN, with the foreign trade group. */
   export?: ServiceExport
+  /** Replaces an issued nota: the government cancels it once this one is issued. */
+  replaces?: ReplaceRequest
+}
+
+/**
+ * The nota being replaced: one issued here (`id`) or elsewhere (`accessKey`). `reasonCode` defaults to 99 (other),
+ * which needs a `reason`.
+ */
+export interface ReplaceRequest {
+  id?: string
+  accessKey?: string
+  reasonCode: Replacement['reasonCode']
+  reason?: string
 }
 
 export interface GovError {
@@ -27,8 +40,9 @@ export interface GovError {
  * - pending: number reserved, never answered by the government.
  * - unknown: sent, but the answer was lost; resolved on the next try by asking for the DPS.
  * - issued / rejected / canceled: the government's answer.
+ * - replaced: issued, then replaced by the nota in `replacedBy`; the government canceled it.
  */
-export type NotaStatus = 'pending' | 'unknown' | 'issued' | 'rejected' | 'canceled'
+export type NotaStatus = 'pending' | 'unknown' | 'issued' | 'rejected' | 'canceled' | 'replaced'
 
 export interface Nota {
   id: string
@@ -42,6 +56,8 @@ export interface Nota {
   errors?: GovError[]
   cancelErrors?: GovError[]
   canceledAt?: string
+  /** Id of the nota that replaced this one. */
+  replacedBy?: string
   nfseXml?: string
   createdAt: string
   updatedAt: string
@@ -141,6 +157,29 @@ export const createNotas = ({ repo, gov, config, now = () => new Date() }: { rep
     return sameValue && sameTaker ? { accessKey, nfseXml } : 'not-ours'
   }
 
+  const replacementOf = ({ replaces }: IssueRequest): Replacement | undefined =>
+    replaces?.accessKey ? { accessKey: replaces.accessKey, reasonCode: replaces.reasonCode, reason: replaces.reason } : undefined
+
+  /** Finds the access key of the nota to replace, when given by id; it must be issued here. */
+  const resolveReplacement = async (request: IssueRequest): Promise<IssueRequest> => {
+    const { replaces } = request
+    if (!replaces?.id || replaces.accessKey) return request
+    if (replaces.id === request.id) throw notaError(400, 'replaces.id: a nota cannot replace itself')
+    const old = await repo.get(replaces.id)
+    if (!old) throw notaError(404, 'replaces.id: nota not found')
+    if (old.status !== 'issued' || !old.accessKey) throw notaError(409, `replaces.id: nota is ${old.status}, not issued`)
+    return { ...request, replaces: { ...replaces, accessKey: old.accessKey } }
+  }
+
+  /** Once the new nota is issued, the one it replaces (when issued here) is marked replaced. */
+  const markReplaced = async (nota: Nota): Promise<Nota> => {
+    const oldId = nota.request.replaces?.id
+    if (nota.status !== 'issued' || !oldId) return nota
+    const old = await repo.get(oldId)
+    if (old?.status === 'issued') await save(old, { status: 'replaced', replacedBy: nota.id })
+    return nota
+  }
+
   const send = async (nota: Nota, collisions = 0): Promise<Nota> => {
     const issuedAt = new Date(now().getTime() - CLOCK_SKEW_MS)
     const { id: dpsId, xml } = buildDps({
@@ -156,6 +195,7 @@ export const createNotas = ({ repo, gov, config, now = () => new Date() }: { rep
       description: nota.request.description,
       valueCents: nota.request.valueCents,
       export: nota.request.export,
+      replaces: replacementOf(nota.request),
     })
     const sending = await save(nota, { dpsId, status: 'unknown' })
     const result = await gov.sendDps(sefin, xml)
@@ -177,18 +217,20 @@ export const createNotas = ({ repo, gov, config, now = () => new Date() }: { rep
 
   const issue = async (request: IssueRequest): Promise<Nota> => {
     const existing = await repo.get(request.id)
-    if (existing?.status === 'issued' || existing?.status === 'canceled') return existing
+    if (existing?.status === 'issued') return markReplaced(existing)
+    if (existing?.status === 'canceled' || existing?.status === 'replaced') return existing
     if (existing?.status === 'unknown') {
       const found = await findIssued(existing)
-      if (typeof found === 'object') return markIssued(existing, found.accessKey, found.nfseXml)
+      if (typeof found === 'object') return markReplaced(await markIssued(existing, found.accessKey, found.nfseXml))
       if (found === 'unreachable') return existing
     }
     const at = now().toISOString()
+    const isNewRequest = !existing || existing.status === 'rejected' || existing.status === 'pending'
     const nota: Nota = existing
-      ? { ...existing, request: existing.status === 'rejected' || existing.status === 'pending' ? request : existing.request }
-      : { id: request.id, status: 'pending', request, dpsNumber: await repo.nextNumber(), dpsId: '', createdAt: at, updatedAt: at }
+      ? { ...existing, request: isNewRequest ? await resolveReplacement(request) : existing.request }
+      : { id: request.id, status: 'pending', request: await resolveReplacement(request), dpsNumber: await repo.nextNumber(), dpsId: '', createdAt: at, updatedAt: at }
     if (!existing) await repo.save(nota)
-    return send(nota)
+    return markReplaced(await send(nota))
   }
 
   const cancel: Notas['cancel'] = async (id, reason) => {
@@ -223,7 +265,7 @@ export const createNotas = ({ repo, gov, config, now = () => new Date() }: { rep
       return Uint8Array.from(atob(result.json.pdfB64), (char) => char.charCodeAt(0))
     }
     if (!nota.nfseXml) throw notaError(502, 'DANFSe not available right now')
-    return renderDanfse(nota.nfseXml, { isCanceled: nota.status === 'canceled' })
+    return renderDanfse(nota.nfseXml, { isCanceled: nota.status === 'canceled' || nota.status === 'replaced' })
   }
 
   return { issue, get: (id) => repo.get(id), cancel, pdf, list: (options) => repo.list(options) }

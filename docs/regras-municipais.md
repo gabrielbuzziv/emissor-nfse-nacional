@@ -66,8 +66,8 @@ Se você emite notas sem tomador, confira antes se o seu município aceita cance
 ## Substituição
 
 A prefeitura também define o prazo para substituir uma nota (regra E0050), se aceita substituir nota sem tomador
-identificado (regra E0056) e se aceita trocar o tomador na nota substituta (regra E0058). Este emissor não faz
-substituição.
+identificado (regra E0056) e se aceita trocar o tomador na nota substituta (regra E0058). Quando a substituição é
+recusada, o `POST /v1/notas` responde 422, com o motivo em `errors`, e a nota antiga continua emitida.
 
 ## Fontes
 

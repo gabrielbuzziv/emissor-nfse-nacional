@@ -27,7 +27,7 @@ export class GovClient extends Container<Env> {
   }
 }
 
-const NOTA_STATUSES: readonly NotaStatus[] = ['pending', 'unknown', 'issued', 'rejected', 'canceled']
+const NOTA_STATUSES: readonly NotaStatus[] = ['pending', 'unknown', 'issued', 'rejected', 'canceled', 'replaced']
 const MAX_LIST = 100
 
 const toHex = (bytes: ArrayBuffer): string => [...new Uint8Array(bytes)].map((byte) => byte.toString(16).padStart(2, '0')).join('')
@@ -93,7 +93,7 @@ const view = async (env: Env, origin: string, nota: Nota, withXml = false): Prom
   return { ...rest, ...(links ? { links } : {}), ...(withXml ? { nfseXml } : {}) }
 }
 
-const STATUS_CODE: Record<NotaStatus, 200 | 202 | 422> = { issued: 200, canceled: 200, rejected: 422, pending: 202, unknown: 202 }
+const STATUS_CODE: Record<NotaStatus, 200 | 202 | 422> = { issued: 200, canceled: 200, replaced: 200, rejected: 422, pending: 202, unknown: 202 }
 
 const timingSafeEqual = (a: string, b: string): boolean => {
   const encoder = new TextEncoder()

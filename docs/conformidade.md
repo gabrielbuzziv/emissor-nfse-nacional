@@ -89,7 +89,7 @@ exterior e sem `export`.
 - Endereço do tomador no Brasil e intermediário.
 - Serviço prestado em outro município ou no exterior (`cPaisPrestacao`).
 - Exportação vinculada a movimentação temporária de bens (`nDI` e `nRE`).
-- Substituição de nota e solicitação de análise fiscal para cancelamento.
+- Solicitação de análise fiscal para cancelamento.
 - Nota emitida por pessoa física, pelo tomador ou pelo intermediário.
 
 ## Lacunas conhecidas
