@@ -39,7 +39,8 @@ export interface ForeignTaker {
   nif?: string
   /** When there is no NIF: 1 = exempt from a NIF, 2 = NIF not required. */
   noNifReason?: '1' | '2'
-  address: ForeignAddress
+  /** Required with a NIF (rule E0242); optional without one. */
+  address?: ForeignAddress
 }
 
 /** A taker in Brazil (`taxId`) or abroad (`abroad`); one of the two. */
@@ -48,6 +49,8 @@ export interface Taker {
   taxId?: string
   abroad?: ForeignTaker
   name: string
+  /** Digits only, 6 to 20. */
+  phone?: string
   email?: string
 }
 
@@ -150,7 +153,8 @@ const takerXml = (taker: Taker): string => {
         : el('cNaoNIF', abroad.noNifReason ?? '2')
       : el(taxId.length === 14 ? 'CNPJ' : 'CPF', taxId),
     el('xNome', text(taker.name, 300)),
-    abroad ? foreignAddressXml(abroad.address) : '',
+    abroad?.address ? foreignAddressXml(abroad.address) : '',
+    opt('fone', taker.phone && digits(taker.phone)),
     opt('email', taker.email && text(taker.email, 80)),
   ])
 }

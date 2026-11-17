@@ -93,12 +93,13 @@ describe('buildDps', () => {
   })
 
   describe('export of services', () => {
+    const address = { country: 'us', postalCode: '94105', city: 'San Francisco', region: 'CA', street: 'Market St', number: '1' }
     const abroad: Taker = {
       name: 'Acme Inc.',
       email: 'billing@acme.example',
       abroad: {
         nif: '12-3456789',
-        address: { country: 'us', postalCode: '94105', city: 'San Francisco', region: 'CA', street: 'Market St', number: '1' },
+        address,
       },
     }
     const exported = (overrides: Partial<DpsInput> = {}) =>
@@ -110,7 +111,7 @@ describe('buildDps', () => {
 
     it.each<Environment>(['production', 'restricted'])('passes the %s schema for a MEI and a taker without NIF', (environment) => {
       const mei: Issuer = { cnpj: issuer.cnpj, cityCode: issuer.cityCode, simplesNacionalOption: '2' }
-      const taker: Taker = { name: 'Acme', abroad: { noNifReason: '1', address: { ...abroad.abroad!.address, complement: 'Suite 5', district: 'SoMa' } } }
+      const taker: Taker = { name: 'Acme', abroad: { noNifReason: '1', address: { ...address, complement: 'Suite 5', district: 'SoMa' } } }
       const { xml } = buildDps(exported({ environment, issuer: mei, taker }))
       expect(schemaErrors(xml, environment, 'DPS_v1.01.xsd')).toBe('')
       expect(xml).toContain('<toma><cNaoNIF>1</cNaoNIF><xNome>Acme</xNome><end><endExt><cPais>US</cPais>')
@@ -136,6 +137,12 @@ describe('buildDps', () => {
     // Rules E0580, E0590, E0602: export of services, the result country, no retention and no rate.
     it('states the export with the result country', () => {
       expect(buildDps(exported()).xml).toContain('<tribMun><tribISSQN>3</tribISSQN><cPaisResult>US</cPaisResult><tpRetISSQN>1</tpRetISSQN></tribMun><totTrib><pTotTribSN>6.00</pTotTribSN></totTrib>')
+    })
+
+    it.each<Environment>(['production', 'restricted'])('passes the %s schema for a taker abroad with no NIF nor address', (environment) => {
+      const { xml } = buildDps(exported({ environment, taker: { name: 'Bucksense', phone: '(63) 98418-5192', email: 'a@b.example', abroad: { noNifReason: '2' } } }))
+      expect(schemaErrors(xml, environment, 'DPS_v1.01.xsd')).toBe('')
+      expect(xml).toContain('<toma><cNaoNIF>2</cNaoNIF><xNome>Bucksense</xNome><fone>63984185192</fone><email>a@b.example</email></toma>')
     })
 
     it('keeps the service in the issuer city', () => {

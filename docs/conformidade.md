@@ -73,7 +73,7 @@ o grupo `comExt`.
 | `comExt/movTempBens` | `1`: sem movimentação temporária de bens, então sem `nDI` e `nRE`. | E0345 e E0354 |
 | `comExt/mdic` | `1` quando `export.shareWithMdic` é `true`; senão, `0`. | |
 | `toma/NIF` ou `toma/cNaoNIF` | `taker.abroad.nif` ou `taker.abroad.noNifReason`. | E0223 e E0233 |
-| `toma/end/endExt` | `taker.abroad.address`; o bairro, quando falta, é a cidade. | E0242 e E0246 |
+| `toma/end/endExt` | `taker.abroad.address`; o bairro, quando falta, é a cidade. Obrigatório só com NIF. | E0242 e E0246 |
 
 Um tomador no exterior sempre exige o grupo `comExt` (regra E0330), então o emissor recusa o pedido com tomador no
 exterior e sem `export`.

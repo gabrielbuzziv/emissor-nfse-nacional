@@ -6,10 +6,12 @@ const isText = (value: unknown, max: number): value is string => typeof value ==
 const COUNTRY = /^[A-Z]{2}$/
 
 const parseTaker = (taker: unknown): Taker | string => {
-  const { taxId, abroad, name, email } = (taker ?? {}) as Record<string, unknown>
+  const { taxId, abroad, name, phone, email } = (taker ?? {}) as Record<string, unknown>
   if (typeof name !== 'string' || !name.trim()) return 'taker.name: required'
+  const phoneDigits = typeof phone === 'string' ? phone.replace(/\D/g, '') : ''
+  if (phone !== undefined && !/^\d{6,20}$/.test(phoneDigits)) return 'taker.phone: 6 to 20 digits'
   if (email !== undefined && typeof email !== 'string') return 'taker.email: a string'
-  const contact = { name, ...(email ? { email } : {}) }
+  const contact = { name, ...(phoneDigits ? { phone: phoneDigits } : {}), ...(email ? { email } : {}) }
   if (abroad === undefined) {
     const taxDigits = typeof taxId === 'string' ? taxId.replace(/\D/g, '') : ''
     if (taxDigits.length !== 11 && taxDigits.length !== 14) return 'taker.taxId: a CPF or CNPJ (or taker.abroad for a taker outside Brazil)'
@@ -20,6 +22,9 @@ const parseTaker = (taker: unknown): Taker | string => {
   if ((nif === undefined) === (noNifReason === undefined)) return 'taker.abroad: nif or noNifReason, one of the two'
   if (nif !== undefined && !isText(nif, 40)) return 'taker.abroad.nif: up to 40 characters'
   if (noNifReason !== undefined && noNifReason !== '1' && noNifReason !== '2') return 'taker.abroad.noNifReason: "1" (exempt) or "2" (not required)'
+  const identity = nif !== undefined ? { nif: nif as string } : { noNifReason: noNifReason as '1' | '2' }
+  // Rule E0242: a NIF needs the address abroad; without one, the address is optional.
+  if (address === undefined) return nif !== undefined ? 'taker.abroad.address: required with a nif' : { ...contact, abroad: identity }
   const { country, postalCode, city, region, street, number, complement, district } = (address ?? {}) as Record<string, unknown>
   if (typeof country !== 'string' || !COUNTRY.test(country.toUpperCase()) || country.toUpperCase() === 'BR') return 'taker.abroad.address.country: ISO 3166 alpha-2 code, not BR'
   if (!isText(postalCode, 11)) return 'taker.abroad.address.postalCode: up to 11 characters'
@@ -32,7 +37,7 @@ const parseTaker = (taker: unknown): Taker | string => {
   return {
     ...contact,
     abroad: {
-      ...(nif !== undefined ? { nif: nif as string } : { noNifReason: noNifReason as '1' | '2' }),
+      ...identity,
       address: {
         country: country.toUpperCase(),
         postalCode,

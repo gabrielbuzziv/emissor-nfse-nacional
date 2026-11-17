@@ -222,7 +222,7 @@ POST /v1/notas
 |---|---|
 | `id` | Obrigatório. O identificador da venda no seu sistema, com até 200 caracteres. É ele que impede notas duplicadas. |
 | `competence` | A data da prestação do serviço (`AAAA-MM-DD`), que não pode ser posterior à emissão. Se ficar de fora, vale a data de hoje em Brasília. |
-| `taker` | O tomador: `taxId` (CPF ou CNPJ, com ou sem pontuação), `name` e, se quiser, `email`. Para um tomador no exterior, troque `taxId` por `abroad` (veja [Exportação de serviço](#exportação-de-serviço)). Sem `taker`, a nota sai sem tomador identificado. |
+| `taker` | O tomador: `taxId` (CPF ou CNPJ, com ou sem pontuação), `name` e, se quiser, `phone` e `email`. Para um tomador no exterior, troque `taxId` por `abroad` (veja [Exportação de serviço](#exportação-de-serviço)). Sem `taker`, a nota sai sem tomador identificado. |
 | `serviceCode` | Obrigatório. O código de tributação nacional, com 6 dígitos (`080201` é o item 08.02.01). |
 | `nbsCode` | O código NBS, com 9 dígitos. |
 | `description` | Obrigatório. A descrição do serviço, com até 2.000 caracteres. |
@@ -268,7 +268,7 @@ POST /v1/notas
 |---|---|
 | `taker.abroad.nif` | O número de identificação fiscal do tomador no país dele. |
 | `taker.abroad.noNifReason` | No lugar do `nif`, quando o tomador não tem: `1` (dispensado) ou `2` (não exigido). |
-| `taker.abroad.address` | Obrigatório. `country` (código ISO de 2 letras, nunca `BR`), `postalCode`, `city`, `region` (estado ou província), `street`, `number` e, se quiser, `complement` e `district` (bairro; se ficar de fora, vale a cidade). |
+| `taker.abroad.address` | Obrigatório com `nif`; sem NIF, pode ficar de fora. `country` (código ISO de 2 letras, nunca `BR`), `postalCode`, `city`, `region` (estado ou província), `street`, `number` e, se quiser, `complement` e `district` (bairro; se ficar de fora, vale a cidade). |
 | `export.resultCountry` | Obrigatório. O país onde o resultado do serviço acontece, em código ISO de 2 letras. |
 | `export.currency` | Obrigatório. O código da moeda na tabela do Banco Central: `220` dólar, `978` euro, `540` libra. |
 | `export.foreignValueCents` | Obrigatório. O valor na moeda estrangeira, em centavos. |

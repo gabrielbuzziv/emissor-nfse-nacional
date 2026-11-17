@@ -20,6 +20,11 @@ describe('parseIssueRequest', () => {
     })
   })
 
+  it('accepts a taker abroad without NIF nor address, with a phone', () => {
+    const request = parseIssueRequest({ ...base, taker: { name: 'Acme', phone: '(63) 98418-5192', abroad: { noNifReason: '2' } }, export: exportInfo })
+    expect(request).toMatchObject({ taker: { name: 'Acme', phone: '63984185192', abroad: { noNifReason: '2' } } })
+  })
+
   it('accepts an export to a taker in Brazil whose result is abroad', () => {
     expect(parseIssueRequest({ ...base, taker: { taxId: '12345678909', name: 'Maria' }, export: exportInfo })).toMatchObject({ export: { resultCountry: 'US' } })
   })
@@ -28,6 +33,8 @@ describe('parseIssueRequest', () => {
     [{ taker: { name: 'Acme', abroad: { nif: '1', address } } }, 'export: required for a taker abroad'],
     [{ nbsCode: undefined, export: exportInfo }, 'nbsCode: required for an export of services'],
     [{ taker: { name: 'Acme', abroad: { address } }, export: exportInfo }, 'taker.abroad: nif or noNifReason, one of the two'],
+    [{ taker: { name: 'Acme', abroad: { nif: '1' } }, export: exportInfo }, 'taker.abroad.address: required with a nif'],
+    [{ taker: { name: 'Acme', phone: '12', abroad: { noNifReason: '2' } }, export: exportInfo }, 'taker.phone: 6 to 20 digits'],
     [{ taker: { name: 'Acme', abroad: { nif: '1', noNifReason: '1', address } }, export: exportInfo }, 'taker.abroad: nif or noNifReason, one of the two'],
     [{ taker: { name: 'Acme', abroad: { noNifReason: '0', address } }, export: exportInfo }, 'taker.abroad.noNifReason: "1" (exempt) or "2" (not required)'],
     [{ taker: { name: 'Acme', taxId: '12345678909', abroad: { nif: '1', address } }, export: exportInfo }, 'taker: taxId or abroad, not both'],
