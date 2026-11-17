@@ -150,6 +150,13 @@ describe('buildDps', () => {
     })
   })
 
+  it.each<Environment>(['production', 'restricted'])('passes the %s schema when replacing a nota', (environment) => {
+    const replaces = { accessKey: '35503082211222333000181000000000000126111234567890', reasonCode: '99' as const, reason: 'Moeda errada' }
+    const { xml } = buildDps(input({ environment, replaces }))
+    expect(schemaErrors(xml, environment, 'DPS_v1.01.xsd')).toBe('')
+    expect(xml).toContain(`<cLocEmi>3550308</cLocEmi><subst><chSubstda>${replaces.accessKey}</chSubstda><cMotivo>99</cMotivo><xMotivo>Moeda errada...</xMotivo></subst><prest>`)
+  })
+
   it('formats money and Brasília time', () => {
     expect(buildDps(input({ valueCents: 1990 })).xml).toContain('<vServ>19.90</vServ>')
     expect(brasiliaDateTime(new Date('2026-11-12T02:30:00Z'))).toBe('2026-11-11T23:30:00-03:00')

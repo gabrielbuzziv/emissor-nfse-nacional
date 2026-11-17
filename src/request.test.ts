@@ -29,7 +29,19 @@ describe('parseIssueRequest', () => {
     expect(parseIssueRequest({ ...base, taker: { taxId: '12345678909', name: 'Maria' }, export: exportInfo })).toMatchObject({ export: { resultCountry: 'US' } })
   })
 
+  it('accepts the nota to replace, by id or access key, defaulting the reason code to 99', () => {
+    const reason = 'Correção da moeda do serviço'
+    expect(parseIssueRequest({ ...base, replaces: { id: 'sale-0', reason: ` ${reason} ` } })).toMatchObject({ replaces: { id: 'sale-0', reasonCode: '99', reason } })
+    expect(parseIssueRequest({ ...base, replaces: { accessKey: '1'.repeat(50), reasonCode: '05' } })).toMatchObject({ replaces: { accessKey: '1'.repeat(50), reasonCode: '05' } })
+  })
+
   it.each([
+    [{ replaces: {} }, 'replaces: id or accessKey, one of the two'],
+    [{ replaces: { id: 'a', accessKey: '1'.repeat(50) } }, 'replaces: id or accessKey, one of the two'],
+    [{ replaces: { accessKey: '123' } }, 'replaces.accessKey: the 50-digit access key'],
+    [{ replaces: { id: 'a', reasonCode: '06' } }, 'replaces.reasonCode: "01" to "05" or "99"'],
+    [{ replaces: { id: 'a' } }, 'replaces.reason: required with reasonCode "99"'],
+    [{ replaces: { id: 'a', reasonCode: '01', reason: 'curta' } }, 'replaces.reason: 15 to 255 characters'],
     [{ taker: { name: 'Acme', abroad: { nif: '1', address } } }, 'export: required for a taker abroad'],
     [{ nbsCode: undefined, export: exportInfo }, 'nbsCode: required for an export of services'],
     [{ taker: { name: 'Acme', abroad: { address } }, export: exportInfo }, 'taker.abroad: nif or noNifReason, one of the two'],

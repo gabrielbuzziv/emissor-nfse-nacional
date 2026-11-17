@@ -1,5 +1,5 @@
 import type { ServiceExport, Taker } from './dps'
-import type { IssueRequest } from './notas'
+import type { IssueRequest, ReplaceRequest } from './notas'
 
 const isText = (value: unknown, max: number): value is string => typeof value === 'string' && value.trim().length > 0 && value.trim().length <= max
 
@@ -75,10 +75,27 @@ const parseExport = (value: unknown): ServiceExport | string => {
   }
 }
 
+const REASON_CODES = ['01', '02', '03', '04', '05', '99']
+
+const parseReplaces = (value: unknown): ReplaceRequest | string => {
+  const { id, accessKey, reasonCode = '99', reason } = (value ?? {}) as Record<string, unknown>
+  if ((id === undefined) === (accessKey === undefined)) return 'replaces: id or accessKey, one of the two'
+  if (id !== undefined && !isText(id, 200)) return 'replaces.id: a string up to 200 characters'
+  if (accessKey !== undefined && (typeof accessKey !== 'string' || !/^\d{50}$/.test(accessKey))) return 'replaces.accessKey: the 50-digit access key'
+  if (typeof reasonCode !== 'string' || !REASON_CODES.includes(reasonCode)) return 'replaces.reasonCode: "01" to "05" or "99"'
+  if (reason !== undefined && (typeof reason !== 'string' || reason.trim().length < 15 || reason.trim().length > 255)) return 'replaces.reason: 15 to 255 characters'
+  if (reasonCode === '99' && reason === undefined) return 'replaces.reason: required with reasonCode "99"'
+  return {
+    ...(id !== undefined ? { id: id as string } : { accessKey: accessKey as string }),
+    reasonCode: reasonCode as ReplaceRequest['reasonCode'],
+    ...(reason !== undefined ? { reason: (reason as string).trim() } : {}),
+  }
+}
+
 /** Checks the body of `POST /v1/notas`; returns the request or what is wrong with it. */
 export const parseIssueRequest = (body: unknown): IssueRequest | string => {
   if (!body || typeof body !== 'object') return 'body must be a JSON object'
-  const { id, competence, taker, serviceCode, nbsCode, description, valueCents, export: exportInfo } = body as Record<string, unknown>
+  const { id, competence, taker, serviceCode, nbsCode, description, valueCents, export: exportInfo, replaces } = body as Record<string, unknown>
   if (typeof id !== 'string' || !id || id.length > 200) return 'id: a string up to 200 characters'
   if (competence !== undefined && (typeof competence !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(competence))) return 'competence: YYYY-MM-DD'
   if (typeof serviceCode !== 'string' || !/^\d{6}$/.test(serviceCode)) return 'serviceCode: the 6-digit national code (cTribNac)'
@@ -95,6 +112,11 @@ export const parseIssueRequest = (body: unknown): IssueRequest | string => {
     const parsed = parseExport(exportInfo)
     if (typeof parsed === 'string') return parsed
     request.export = parsed
+  }
+  if (replaces !== undefined) {
+    const parsed = parseReplaces(replaces)
+    if (typeof parsed === 'string') return parsed
+    request.replaces = parsed
   }
   // Rules E0330 and E0318: a taker abroad makes it foreign trade, which needs the comExt group and an NBS code.
   if (request.taker?.abroad && !request.export) return 'export: required for a taker abroad'

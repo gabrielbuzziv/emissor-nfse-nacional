@@ -182,6 +182,50 @@ describe('issue', () => {
   })
 })
 
+describe('replace', () => {
+  const reason = 'Correção da moeda do serviço exportado'
+
+  it('replaces a nota issued here and marks it replaced', async () => {
+    const { notas, fake, repo } = setup()
+    const old = await notas.issue(request())
+    const replacing = await notas.issue(request({ id: 'pedido:1001-b', valueCents: 9800, replaces: { id: old.id, reasonCode: '99', reason } }))
+    expect(replacing).toMatchObject({ status: 'issued', dpsNumber: 2, request: { replaces: { id: old.id, accessKey: old.accessKey } } })
+    expect(fake.sent[1]).toContain(`<subst><chSubstda>${old.accessKey}</chSubstda><cMotivo>99</cMotivo><xMotivo>${reason}</xMotivo></subst>`)
+    expect(await repo.get(old.id)).toMatchObject({ status: 'replaced', replacedBy: replacing.id })
+  })
+
+  it('replaces a nota issued elsewhere by its access key', async () => {
+    const { notas, fake } = setup()
+    const accessKey = '3'.repeat(50)
+    await notas.issue(request({ replaces: { accessKey, reasonCode: '05' } }))
+    expect(fake.sent[0]).toContain(`<subst><chSubstda>${accessKey}</chSubstda><cMotivo>05</cMotivo></subst>`)
+  })
+
+  it('marks the old nota replaced when the answer of the new one was lost', async () => {
+    const { notas, fake, repo } = setup()
+    const old = await notas.issue(request())
+    fake.sendScript.push('lose-after-issuing')
+    const replaces = { id: old.id, reasonCode: '99' as const, reason }
+    expect((await notas.issue(request({ id: 'b', replaces }))).status).toBe('unknown')
+    expect((await repo.get(old.id))?.status).toBe('issued')
+    expect((await notas.issue(request({ id: 'b', replaces }))).status).toBe('issued')
+    expect((await repo.get(old.id))?.status).toBe('replaced')
+  })
+
+  it('refuses to replace a nota that is not issued here', async () => {
+    const { notas, fake } = setup()
+    const replaces = (id: string) => ({ id, reasonCode: '99' as const, reason })
+    await expect(notas.issue(request({ id: 'b', replaces: replaces('missing') }))).rejects.toMatchObject({ status: 404 })
+    await expect(notas.issue(request({ id: 'b', replaces: replaces('b') }))).rejects.toMatchObject({ status: 400 })
+    fake.sendScript.push(ok(400, { erros: [{ Codigo: 'E0160', Descricao: 'x' }] }))
+    await notas.issue(request())
+    await expect(notas.issue(request({ id: 'b', replaces: replaces('pedido:1001') }))).rejects.toMatchObject({ status: 409 })
+    const old = await notas.issue(request())
+    await notas.cancel(old.id, {})
+    await expect(notas.issue(request({ id: 'c', replaces: replaces(old.id) }))).rejects.toMatchObject({ status: 409 })
+  })
+})
+
 describe('cancel', () => {
   it('cancels an issued nota', async () => {
     const { notas, fake } = setup()
