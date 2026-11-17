@@ -19,11 +19,62 @@ export interface Issuer {
   simplesNacionalTotalTaxPercent?: string
 }
 
+/** Address of a taker abroad (endExt). */
+export interface ForeignAddress {
+  /** ISO 3166-1 alpha-2 code, never "BR" (rule E0246). */
+  country: string
+  postalCode: string
+  city: string
+  /** State, province or region. */
+  region: string
+  street: string
+  number: string
+  complement?: string
+  /** Neighbourhood; the layout requires one, so it defaults to the city. */
+  district?: string
+}
+
+/** A taker abroad: identified by its foreign tax id (NIF) or by why it has none. */
+export interface ForeignTaker {
+  nif?: string
+  /** When there is no NIF: 1 = exempt from a NIF, 2 = NIF not required. */
+  noNifReason?: '1' | '2'
+  /** Required with a NIF (rule E0242); optional without one. */
+  address?: ForeignAddress
+}
+
+/** A taker in Brazil (`taxId`) or abroad (`abroad`); one of the two. */
 export interface Taker {
   /** CPF (11 digits) or CNPJ (14 digits). */
-  taxId: string
+  taxId?: string
+  abroad?: ForeignTaker
   name: string
+  /** Digits only, 6 to 20. */
+  phone?: string
   email?: string
+}
+
+/**
+ * Export of services (tribISSQN = 3, no ISSQN) and the foreign trade group (comExt). The service is always
+ * provided from the issuer's city, so the government asks for the country where its result happens.
+ */
+export interface ServiceExport {
+  /** ISO 3166-1 alpha-2 code of the country where the result of the service happens (cPaisResult), never "BR". */
+  resultCountry: string
+  /** BACEN currency code, 3 digits: "220" US dollar, "978" euro, "540" pound sterling. */
+  currency: string
+  /** Value in that currency, in cents. */
+  foreignValueCents: number
+  /** 1 = cross-border (default), 2 = consumption in Brazil, 3 = commercial presence abroad, 4 = temporary movement of people. */
+  mode?: '1' | '2' | '3' | '4'
+  /** Link between issuer and taker: 0 = none (default), 1 to 6 as in the layout. */
+  relationship?: '0' | '1' | '2' | '3' | '4' | '5' | '6'
+  /** Foreign trade support the issuer used (mecAFComexP); "01" = none (default). */
+  issuerSupport?: string
+  /** Foreign trade support the taker used (mecAFComexT); "01" = none (default). */
+  takerSupport?: string
+  /** Share the nota with the Secretaria de Comércio Exterior (MDIC); default false. */
+  shareWithMdic?: boolean
 }
 
 export interface DpsInput {
@@ -41,6 +92,7 @@ export interface DpsInput {
   nbsCode?: string
   description: string
   valueCents: number
+  export?: ServiceExport
 }
 
 export const NFSE_NS = 'http://www.sped.fazenda.gov.br/nfse'
@@ -75,14 +127,59 @@ export const dpsId = (issuer: Issuer, series: string, number: number): string =>
 
 const centsToDecimal = (cents: number): string => (cents / 100).toFixed(2)
 
+const text = (value: string, max: number): string => value.trim().slice(0, max)
+
+const foreignAddressXml = (address: ForeignAddress): string =>
+  el('end', [
+    el('endExt', [
+      el('cPais', address.country.toUpperCase()),
+      el('cEndPost', text(address.postalCode, 11)),
+      el('xCidade', text(address.city, 60)),
+      el('xEstProvReg', text(address.region, 60)),
+    ]),
+    el('xLgr', text(address.street, 255)),
+    el('nro', text(address.number, 60)),
+    opt('xCpl', address.complement && text(address.complement, 156)),
+    el('xBairro', text(address.district || address.city, 60)),
+  ])
+
 const takerXml = (taker: Taker): string => {
-  const taxId = digits(taker.taxId)
+  const { abroad } = taker
+  const taxId = digits(taker.taxId ?? '')
   return el('toma', [
-    el(taxId.length === 14 ? 'CNPJ' : 'CPF', taxId),
-    el('xNome', taker.name.trim().slice(0, 300)),
-    opt('email', taker.email?.trim().slice(0, 80)),
+    abroad
+      ? abroad.nif
+        ? el('NIF', text(abroad.nif, 40))
+        : el('cNaoNIF', abroad.noNifReason ?? '2')
+      : el(taxId.length === 14 ? 'CNPJ' : 'CPF', taxId),
+    el('xNome', text(taker.name, 300)),
+    abroad?.address ? foreignAddressXml(abroad.address) : '',
+    opt('fone', taker.phone && digits(taker.phone)),
+    opt('email', taker.email && text(taker.email, 80)),
   ])
 }
+
+// Movement of goods (movTempBens) is always 1 = none, which forbids nDI and nRE (rule E0354).
+const foreignTradeXml = (exp: ServiceExport): string =>
+  el('comExt', [
+    el('mdPrestacao', exp.mode ?? '1'),
+    el('vincPrest', exp.relationship ?? '0'),
+    el('tpMoeda', exp.currency),
+    el('vServMoeda', centsToDecimal(exp.foreignValueCents)),
+    el('mecAFComexP', exp.issuerSupport ?? '01'),
+    el('mecAFComexT', exp.takerSupport ?? '01'),
+    el('movTempBens', '1'),
+    el('mdic', exp.shareWithMdic ? '1' : '0'),
+  ])
+
+// An export has no ISSQN: no retention (E0580), no rate (E0602); the result country is required (E0590).
+const municipalTaxXml = (exp: ServiceExport | undefined): string =>
+  el(
+    'tribMun',
+    exp
+      ? [el('tribISSQN', '3'), el('cPaisResult', exp.resultCountry.toUpperCase()), el('tpRetISSQN', '1')]
+      : [el('tribISSQN', '1'), el('tpRetISSQN', '1')],
+  )
 
 const totalTaxXml = (issuer: Issuer): string => {
   // ME/EPP must state the approximate Simples rate; MEI and non-opted-in cannot (rules E0710–E0713).
@@ -125,10 +222,11 @@ export const buildDps = (input: DpsInput): { id: string; xml: string } => {
           ? [el('cTribNac', input.serviceCode), el('xDescServ', description), opt('cNBS', input.nbsCode)]
           : [el('cTribNac', input.serviceCode), opt('cNBS', input.nbsCode), el('xDescServ', description)],
       ),
+      input.export ? foreignTradeXml(input.export) : '',
     ]),
     el('valores', [
       el('vServPrest', [el('vServ', centsToDecimal(input.valueCents))]),
-      el('trib', [el('tribMun', [el('tribISSQN', '1'), el('tpRetISSQN', '1')]), totalTaxXml(issuer)]),
+      el('trib', [municipalTaxXml(input.export), totalTaxXml(issuer)]),
     ]),
   ].join('')
   return {
@@ -166,6 +264,9 @@ export const buildCancellation = (input: CancellationInput): string => {
   ].join('')
   return `<?xml version="1.0" encoding="UTF-8"?><pedRegEvento xmlns="${NFSE_NS}" versao="${LAYOUT_VERSION}"><infPedReg Id="${id}">${body}</infPedReg></pedRegEvento>`
 }
+
+export const unescapeXml = (text: string): string =>
+  text.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&amp;/g, '&')
 
 /** First match of `<tag>value</tag>` in an XML document. */
 export const xmlValue = (xml: string, tag: string): string | undefined => xml.match(new RegExp(`<${tag}>([^<]*)</${tag}>`))?.[1]

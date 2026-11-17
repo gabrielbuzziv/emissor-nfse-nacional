@@ -2,12 +2,12 @@ import { readFileSync, writeFileSync } from 'node:fs'
 import { PDFDocument } from 'pdf-lib'
 import { describe, expect, it } from 'vitest'
 import { publicLookupUrl, renderDanfse } from './danfse'
-import { buildDps } from './dps'
+import { buildDps, type DpsInput } from './dps'
 
 const accessKey = '35503082211222333000181000000000000126111234567890'
 
 /** An authorized NFS-e around a DPS we build, shaped like the government's answer. */
-const nfseXml = (): string => {
+const nfseXml = (overrides: Partial<DpsInput> = {}): string => {
   const { xml } = buildDps({
     environment: 'production',
     issuer: { cnpj: '11222333000181', cityCode: '3550308', simplesNacionalOption: '3', simplesNacionalApuration: '1', simplesNacionalTotalTaxPercent: '6.00' },
@@ -20,6 +20,7 @@ const nfseXml = (): string => {
     nbsCode: '122051900',
     description: 'Curso online “Fotografia & Luz” – plano anual – pedido 1001',
     valueCents: 4000,
+    ...overrides,
   })
   return (
     `<?xml version="1.0" encoding="utf-8"?><NFSe versao="1.01" xmlns="http://www.sped.fazenda.gov.br/nfse"><infNFSe Id="NFS${accessKey}">` +
@@ -39,6 +40,14 @@ describe('renderDanfse', () => {
 
   it('renders a canceled nota too', async () => {
     expect((await renderDanfse(nfseXml(), { isCanceled: true })).byteLength).toBeGreaterThan(1000)
+  })
+
+  it('renders an export to a taker abroad named outside the Latin alphabet', async () => {
+    const xml = nfseXml({
+      taker: { name: '株式会社サンプル', abroad: { nif: 'JP-123', address: { country: 'JP', postalCode: '100-0001', city: 'Tokyo', region: 'Tokyo', street: 'Chiyoda', number: '1' } } },
+      export: { resultCountry: 'JP', currency: '470', foreignValueCents: 100000 },
+    })
+    expect((await PDFDocument.load(await renderDanfse(xml))).getPageCount()).toBe(1)
   })
 
   it('points the QR code to the public lookup of the access key', () => {

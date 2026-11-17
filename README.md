@@ -222,11 +222,12 @@ POST /v1/notas
 |---|---|
 | `id` | Obrigatório. O identificador da venda no seu sistema, com até 200 caracteres. É ele que impede notas duplicadas. |
 | `competence` | A data da prestação do serviço (`AAAA-MM-DD`), que não pode ser posterior à emissão. Se ficar de fora, vale a data de hoje em Brasília. |
-| `taker` | O tomador: `taxId` (CPF ou CNPJ, com ou sem pontuação), `name` e, se quiser, `email`. Sem ele, a nota sai sem tomador identificado. |
+| `taker` | O tomador: `taxId` (CPF ou CNPJ, com ou sem pontuação), `name` e, se quiser, `phone` e `email`. Para um tomador no exterior, troque `taxId` por `abroad` (veja [Exportação de serviço](#exportação-de-serviço)). Sem `taker`, a nota sai sem tomador identificado. |
 | `serviceCode` | Obrigatório. O código de tributação nacional, com 6 dígitos (`080201` é o item 08.02.01). |
 | `nbsCode` | O código NBS, com 9 dígitos. |
 | `description` | Obrigatório. A descrição do serviço, com até 2.000 caracteres. |
 | `valueCents` | Obrigatório. O valor do serviço em centavos (`9700` é R$ 97,00). |
+| `export` | Só para exportação de serviço. Veja abaixo. |
 
 A resposta é a nota, e o código HTTP diz o que aconteceu:
 
@@ -237,6 +238,52 @@ A resposta é a nota, e o código HTTP diz o que aconteceu:
 - **202**: o governo não respondeu (`status: "unknown"` ou `"pending"`). Envie o mesmo pedido mais tarde: antes de
   reenviar, o emissor confere se o governo chegou a emitir a nota.
 - **400**: pedido inválido; o campo `error` diz o que corrigir.
+
+### Exportação de serviço
+
+Para um cliente no exterior, a nota sai como exportação de serviço, sem ISSQN (`tribISSQN` igual a `3`), com o país
+onde o resultado do serviço acontece e o grupo de comércio exterior (`comExt`):
+
+```json
+POST /v1/notas
+{
+  "id": "invoice-2001",
+  "taker": {
+    "name": "Acme Inc.",
+    "email": "billing@acme.example",
+    "abroad": {
+      "nif": "12-3456789",
+      "address": { "country": "US", "postalCode": "94105", "city": "San Francisco", "region": "CA", "street": "Market St", "number": "1" }
+    }
+  },
+  "serviceCode": "010101",
+  "nbsCode": "115022000",
+  "description": "Desenvolvimento de software sob encomenda",
+  "valueCents": 1000000,
+  "export": { "resultCountry": "US", "currency": "220", "foreignValueCents": 180000 }
+}
+```
+
+| Campo | O que é |
+|---|---|
+| `taker.abroad.nif` | O número de identificação fiscal do tomador no país dele. |
+| `taker.abroad.noNifReason` | No lugar do `nif`, quando o tomador não tem: `1` (dispensado) ou `2` (não exigido). |
+| `taker.abroad.address` | Obrigatório com `nif`; sem NIF, pode ficar de fora. `country` (código ISO de 2 letras, nunca `BR`), `postalCode`, `city`, `region` (estado ou província), `street`, `number` e, se quiser, `complement` e `district` (bairro; se ficar de fora, vale a cidade). |
+| `export.resultCountry` | Obrigatório. O país onde o resultado do serviço acontece, em código ISO de 2 letras. |
+| `export.currency` | Obrigatório. O código da moeda na tabela do Banco Central: `220` dólar, `978` euro, `540` libra. |
+| `export.foreignValueCents` | Obrigatório. O valor na moeda estrangeira, em centavos. |
+| `export.mode` | Modo de prestação: `1` transfronteiriço (o padrão), `2` consumo no Brasil, `3` presença comercial no exterior, `4` movimento temporário de pessoas. |
+| `export.relationship` | Vínculo com o tomador: `0` nenhum (o padrão), `1` controlada, `2` controladora, `3` coligada, `4` matriz, `5` filial, `6` outro. |
+| `export.issuerSupport` | Mecanismo de apoio ao comércio exterior usado pelo prestador, de `01` (nenhum, o padrão) a `08`. |
+| `export.takerSupport` | Mecanismo de apoio usado pelo tomador, de `01` (nenhum, o padrão) a `26`. |
+| `export.shareWithMdic` | `true` para compartilhar a nota com a Secretaria de Comércio Exterior. O padrão é `false`. |
+
+Na exportação, o `nbsCode` é obrigatório. Um tomador no exterior exige o `export`. Um tomador no Brasil pode ter
+`export` quando o resultado do serviço acontece fora do país. As regras estão em
+[Conformidade do emissor](docs/conformidade.md#exportação-de-serviço).
+
+A isenção de PIS e Cofins da exportação não vai na nota. No Simples Nacional, a receita de exportação é separada na
+apuração do PGDAS-D.
 
 ### Cancelar
 

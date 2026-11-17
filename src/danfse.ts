@@ -1,6 +1,6 @@
 import { PDFDocument, rgb, StandardFonts, type PDFFont, type PDFPage } from 'pdf-lib'
 import { encode } from 'uqr'
-import { xmlValue } from './dps'
+import { unescapeXml, xmlValue } from './dps'
 
 /**
  * Our own rendering of the NFS-e (DANFSe) from the authorized XML, used when the government's DANFSe
@@ -26,10 +26,11 @@ const RET_ISSQN: Record<string, string> = { '1': 'Não retido', '2': 'Retido pel
 /** The part of the XML between `<tag>` and `</tag>`, so fields of the provider and the taker do not mix. */
 const section = (xml: string, tag: string): string => xml.match(new RegExp(`<${tag}(?:\\s[^>]*)?>([\\s\\S]*?)</${tag}>`))?.[1] ?? ''
 
-const unescapeXml = (text: string): string =>
-  text.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&amp;/g, '&')
+/** The standard fonts only encode WinAnsi; anything else (a taker abroad named in another script, say) would throw. */
+const printable = (text: string): string =>
+  text.normalize('NFC').replace(/[^\x20-\x7E\xA0-\xFF\u0152\u0153\u0160\u0161\u0178\u017D\u017E\u0192\u02C6\u02DC\u2013\u2014\u2018-\u201A\u201C-\u201E\u2020-\u2022\u2026\u2030\u2039\u203A\u20AC\u2122\n]/g, '?')
 
-const field = (xml: string, tag: string): string => unescapeXml(xmlValue(xml, tag) ?? '')
+const field = (xml: string, tag: string): string => printable(unescapeXml(xmlValue(xml, tag) ?? ''))
 
 const formatCnpj = (value: string): string => value.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, '$1.$2.$3/$4-$5')
 const formatCpf = (value: string): string => value.replace(/^(\d{3})(\d{3})(\d{3})(\d{2})$/, '$1.$2.$3-$4')
@@ -37,7 +38,10 @@ const formatTaxId = (xml: string): string => {
   const cnpj = field(xml, 'CNPJ')
   if (cnpj) return `CNPJ ${formatCnpj(cnpj)}`
   const cpf = field(xml, 'CPF')
-  return cpf ? `CPF ${formatCpf(cpf)}` : 'Não identificado'
+  if (cpf) return `CPF ${formatCpf(cpf)}`
+  const nif = field(xml, 'NIF')
+  if (nif) return `NIF ${nif}${field(xml, 'cPais') ? ` (${field(xml, 'cPais')})` : ''}`
+  return field(xml, 'cNaoNIF') ? `Exterior, sem NIF${field(xml, 'cPais') ? ` (${field(xml, 'cPais')})` : ''}` : 'Não identificado'
 }
 const formatMoney = (value: string): string =>
   value ? `R$ ${Number(value).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '—'
@@ -155,7 +159,7 @@ export const renderDanfse = async (nfseXml: string, options: { isCanceled?: bool
   heading(pen, 'Tomador do serviço')
   grid(pen, [
     ['Nome / razão social', field(taker, 'xNome') || 'Não identificado'],
-    ['CNPJ / CPF', taker ? formatTaxId(taker) : 'Não identificado'],
+    ['CNPJ / CPF / NIF', taker ? formatTaxId(taker) : 'Não identificado'],
     ['E-mail', field(taker, 'email')],
   ])
 
@@ -177,6 +181,7 @@ export const renderDanfse = async (nfseXml: string, options: { isCanceled?: bool
     ['Valor líquido', formatMoney(field(nfseXml, 'vLiq'))],
     ['Tributação do ISSQN', TRIB_ISSQN[field(values, 'tribISSQN')] ?? '—'],
     ['Retenção do ISSQN', RET_ISSQN[field(values, 'tpRetISSQN')] ?? '—'],
+    ...(field(values, 'cPaisResult') ? [['País do resultado do serviço', field(values, 'cPaisResult')] as const] : []),
     ['Tributos aproximados (Lei 12.741/2012)', simplesRate ? `${simplesRate.replace('.', ',')}% do Simples Nacional` : '—'],
   ])
 
