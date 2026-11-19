@@ -4,14 +4,21 @@ import type { IssueRequest, ReplaceRequest } from './notas'
 const isText = (value: unknown, max: number): value is string => typeof value === 'string' && value.trim().length > 0 && value.trim().length <= max
 
 const COUNTRY = /^[A-Z]{2}$/
+/** TSEmail in the layout (1 to 80 characters) and rule E0247. */
+const EMAIL = /^[a-zA-Z0-9_%+-]+(?:\.[a-zA-Z0-9_%+-]+)*@(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]*[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$/
 
 const parseTaker = (taker: unknown): Taker | string => {
   const { taxId, abroad, name, phone, email } = (taker ?? {}) as Record<string, unknown>
   if (typeof name !== 'string' || !name.trim()) return 'taker.name: required'
   const phoneDigits = typeof phone === 'string' ? phone.replace(/\D/g, '') : ''
   if (phone !== undefined && !/^\d{6,20}$/.test(phoneDigits)) return 'taker.phone: 6 to 20 digits'
-  if (email !== undefined && typeof email !== 'string') return 'taker.email: a string'
-  const contact = { name, ...(phoneDigits ? { phone: phoneDigits } : {}), ...(email ? { email } : {}) }
+  let trimmedEmail: string | undefined
+  if (email !== undefined) {
+    if (typeof email !== 'string') return 'taker.email: a string'
+    trimmedEmail = email.trim()
+    if (!trimmedEmail || trimmedEmail.length > 80 || !EMAIL.test(trimmedEmail)) return 'taker.email: a valid email up to 80 characters'
+  }
+  const contact = { name, ...(phoneDigits ? { phone: phoneDigits } : {}), ...(trimmedEmail ? { email: trimmedEmail } : {}) }
   if (abroad === undefined) {
     const taxDigits = typeof taxId === 'string' ? taxId.replace(/\D/g, '') : ''
     if (taxDigits.length !== 11 && taxDigits.length !== 14) return 'taker.taxId: a CPF or CNPJ (or taker.abroad for a taker outside Brazil)'

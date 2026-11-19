@@ -10,6 +10,19 @@ describe('parseIssueRequest', () => {
     expect(parseIssueRequest({ ...base, taker: { taxId: '123.456.789-09', name: 'Maria' } })).toMatchObject({ taker: { taxId: '12345678909', name: 'Maria' } })
   })
 
+  it('validates and trims the taker email (rule E0247)', () => {
+    expect(parseIssueRequest({ ...base, taker: { taxId: '12345678909', name: 'Maria', email: '  maria.silva+nfse@empresa.com.br  ' } })).toMatchObject({
+      taker: { email: 'maria.silva+nfse@empresa.com.br' },
+    })
+    expect(parseIssueRequest({ ...base, taker: { taxId: '12345678909', name: 'Maria', email: `${'a'.repeat(68)}@example.com` } })).toMatchObject({
+      taker: { email: `${'a'.repeat(68)}@example.com` },
+    })
+    expect(parseIssueRequest({ ...base, taker: { taxId: '12345678909', name: 'Maria', email: 123 } })).toBe('taker.email: a string')
+    for (const email of ['', '   ', 'maria', 'maria@', '@empresa.com', 'maria@empresa', 'maria..silva@empresa.com', `${'a'.repeat(69)}@example.com`]) {
+      expect(parseIssueRequest({ ...base, taker: { taxId: '12345678909', name: 'Maria', email } })).toBe('taker.email: a valid email up to 80 characters')
+    }
+  })
+
   it('accepts an export to a taker abroad, upper-casing the countries', () => {
     const request = parseIssueRequest({ ...base, taker: { name: 'Acme', abroad: { nif: '12-3456789', address } }, export: exportInfo })
     expect(request).toEqual({
